@@ -1,35 +1,22 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  TextInput, 
-  TouchableOpacity, 
-  StyleSheet, 
-  Image, 
-  KeyboardAvoidingView, 
-  Platform, 
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   SafeAreaView,
-  Animated,
-  Alert
+  StatusBar,
+  FlatList,
+  Alert,
+  Animated
 } from 'react-native';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { db } from '../config/firebase';
-import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
+import { useNavigation } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
-
-// Inline SVG for Mahindra logo (white text on red background)
-const mahindraLogoSVG = `
-  <svg width="120" height="40" viewBox="0 0 120 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <rect width="120" height="40" fill="#E31937"/>
-    <text x="60" y="26" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="white" text-anchor="middle">Mahindra</text>
-  </svg>
-`;
-
-// Convert SVG to base64 for Image component
-const mahindraLogo = { 
-  uri: `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(mahindraLogoSVG)))}` 
-};
 
 // Chat flow states
 const CHAT_STATES = {
@@ -40,27 +27,49 @@ const CHAT_STATES = {
   THANK_YOU: 'THANK_YOU'
 };
 
-// Mood options
+// Mood options with emojis
 const MOODS = [
-  { id: 'glad', label: '😊 Glad', color: '#4CAF50' },
-  { id: 'neutral', label: '😐 Neutral', color: '#FFC107' },
-  { id: 'sad', label: '😔 Sad', color: '#F44336' }
+  { id: 'glad', label: 'Glad 😊!', emoji: '😊', color: '#E31937' },
+  { id: 'sad', label: 'Sad 😢!', emoji: '😢', color: '#E31937' },
+  { id: 'mad', label: 'Mad 😠!', emoji: '😠', color: '#E31937' }
 ];
 
-// Follow-up questions based on mood
+// Follow-up questions and responses based on mood
 const FOLLOW_UP_QUESTIONS = {
-  glad: [
-    "What's making you feel glad today?",
-    "Can you share what went well?"
-  ],
-  neutral: [
-    "What would make your day better?",
-    "Is there anything specific on your mind?"
-  ],
-  sad: [
-    "I'm sorry to hear that. What's bothering you?",
-    "Would you like to share what happened?"
-  ]
+  glad: {
+    question: "Hi, That's great to hear that you are glad! What's making you feel good today?",
+    options: [
+      { text: 'Sociable colleagues', emoji: '👥' },
+      { text: 'Good Boss', emoji: '👔' },
+      { text: 'Meaningful Work', emoji: '💼' },
+      { text: 'Work Environment', emoji: '🏢' },
+      { text: 'Work Culture', emoji: '🌱' },
+      { text: 'Work Life Balance', emoji: '⚖️' },
+      { text: 'Great Career', emoji: '📈' },
+      { text: 'Workplace Opportunities', emoji: '🎯' }
+    ]
+  },
+  sad: {
+    question: "I'm sorry to hear that you're feeling sad. What's bothering you today?",
+    options: [
+      { text: 'Workload', emoji: '🏋️' },
+      { text: 'Team Issues', emoji: '👥' },
+      { text: 'Lack of Recognition', emoji: '🏆' },
+      { text: 'Work-Life Balance', emoji: '⚖️' },
+      { text: 'Career Growth', emoji: '🌱' },
+      { text: 'Management', emoji: '👔' }
+    ]
+  },
+  mad: {
+    question: "I understand you're feeling frustrated. What's making you mad?",
+    options: [
+      { text: 'Unfair Treatment', emoji: '😠' },
+      { text: 'Communication Issues', emoji: '💬' },
+      { text: 'Lack of Support', emoji: '🤝' },
+      { text: 'Work Pressure', emoji: '🏋️' },
+      { text: 'Process Inefficiencies', emoji: '🔄' }
+    ]
+  }
 };
 
 const ChatScreen = () => {
@@ -69,11 +78,14 @@ const ChatScreen = () => {
   const [chatState, setChatState] = useState(CHAT_STATES.EMPLOYEE_ID);
   const [employeeId, setEmployeeId] = useState('');
   const [selectedMood, setSelectedMood] = useState(null);
+  const [selectedOption, setSelectedOption] = useState(null);
+  const [showOptions, setShowOptions] = useState(false);
   const [chatData, setChatData] = useState({
     employeeId: '',
     mood: '',
     responses: [],
-    feedback: ''
+    feedback: '',
+    selectedOptions: []
   });
   
   const scrollViewRef = useRef();
@@ -109,26 +121,19 @@ const ChatScreen = () => {
 
   // Handle employee ID submission
   const handleEmployeeIdSubmit = async () => {
-    console.log('handleEmployeeIdSubmit called with employeeId:', employeeId);
-    
     const trimmedId = employeeId.trim();
     if (!trimmedId) {
-      console.log('Empty employee ID, returning');
       Alert.alert('Required', 'Please enter your Employee ID');
       return;
     }
 
     // Validate employee ID format (example: EMP001)
     if (!/^EMP\d{3}$/i.test(trimmedId)) {
-      console.log('Invalid employee ID format:', trimmedId);
       Alert.alert('Invalid Format', 'Please enter a valid Employee ID (e.g., EMP001)');
       return;
     }
 
-    console.log('Employee ID is valid, proceeding...');
-
     try {
-      // Show loading state
       const userMessage = {
         id: Date.now(),
         text: `Employee ID: ${trimmedId}`,
@@ -136,29 +141,16 @@ const ChatScreen = () => {
         time: new Date()
       };
       
-      console.log('Adding user message:', userMessage);
-      
-      // Update messages with the user's input
-      setMessages(prev => {
-        console.log('Current messages before update:', prev);
-        return [...prev, userMessage];
-      });
-      
-      // Clear the input field
+      setMessages(prev => [...prev, userMessage]);
       setEmployeeId('');
 
       // Simulate verification
       setTimeout(() => {
-        console.log('Setting chat data with employeeId:', trimmedId);
-        setChatData(prev => {
-          const newData = { 
-            ...prev, 
-            employeeId: trimmedId,
-            timestamp: new Date().toISOString()
-          };
-          console.log('New chat data:', newData);
-          return newData;
-        });
+        setChatData(prev => ({
+          ...prev, 
+          employeeId: trimmedId,
+          timestamp: new Date().toISOString()
+        }));
         
         // Show mood selection after a short delay
         showMoodSelection();
@@ -172,7 +164,6 @@ const ChatScreen = () => {
 
   // Show mood selection
   const showMoodSelection = () => {
-    console.log('showMoodSelection called');
     const moodQuestion = {
       id: Date.now() + 1,
       text: "How are you feeling today?",
@@ -181,79 +172,155 @@ const ChatScreen = () => {
       isMoodQuestion: true
     };
     
-    console.log('Adding mood question:', moodQuestion);
-    setMessages(prev => {
-      console.log('Current messages before adding mood question:', prev);
-      const newMessages = [...prev, moodQuestion];
-      console.log('Messages after adding mood question:', newMessages);
-      return newMessages;
-    });
-    
-    console.log('Setting chat state to MOOD_SELECTION');
+    setMessages(prev => [...prev, moodQuestion]);
     setChatState(CHAT_STATES.MOOD_SELECTION);
   };
 
   // Handle mood selection
   const handleMoodSelect = (mood) => {
+    const moodData = MOODS.find(m => m.id === mood);
     setSelectedMood(mood);
     
     // Add user's mood selection to chat
     const userMoodMessage = {
       id: Date.now(),
-      text: `I'm feeling ${mood}`,
+      text: moodData.label,
       isUser: true,
       time: new Date()
     };
-    
+
     setMessages(prev => [...prev, userMoodMessage]);
-    setChatData(prev => ({ ...prev, mood }));
     
-    // Show follow-up question after a delay
-    setTimeout(() => showFollowUpQuestion(mood), 800);
+    // Show follow-up question after a short delay
+    setTimeout(() => {
+      showFollowUpQuestion(mood);
+    }, 500);
   };
 
   // Show follow-up question based on mood
   const showFollowUpQuestion = (mood) => {
-    const questions = FOLLOW_UP_QUESTIONS[mood] || [
-      "Is there anything else you'd like to share?"
-    ];
+    const followUp = FOLLOW_UP_QUESTIONS[mood];
+    if (!followUp) return;
     
-    const question = {
+    // Add mood response to chat data
+    setChatData(prev => ({
+      ...prev,
+      mood: mood,
+      responses: [...prev.responses, { question: 'How are you feeling today?', answer: mood }]
+    }));
+    
+    // Add image message if exists
+    if (followUp.image) {
+      const imageMessage = {
+        id: Date.now() + 2,
+        image: followUp.image,
+        isUser: false,
+        time: new Date()
+      };
+      setMessages(prev => [...prev, imageMessage]);
+    }
+    
+    // Add follow-up question
+    const followUpMessage = {
       id: Date.now() + 1,
-      text: questions[0], // Show first question
+      text: followUp.question,
+      isUser: false,
+      time: new Date(),
+      isFollowUp: true,
+      options: followUp.options
+    };
+    
+    setMessages(prev => [...prev, followUpMessage]);
+    setShowOptions(true);
+    setChatState(CHAT_STATES.FOLLOW_UP);
+  };
+
+  // Handle option selection from follow-up
+  const handleOptionSelect = (option) => {
+    setSelectedOption(option);
+    
+    // Add selected option to chat
+    const optionMessage = {
+      id: Date.now(),
+      text: option.text,
+      isUser: true,
+      time: new Date()
+    };
+
+    setMessages(prev => [...prev, optionMessage]);
+    
+    // Add option to chat data
+    setChatData(prev => ({
+      ...prev,
+      responses: [...prev.responses, { 
+        question: FOLLOW_UP_QUESTIONS[selectedMood].question,
+        answer: option.text
+      }],
+      selectedOptions: [...prev.selectedOptions, option]
+    }));
+    
+    // Show response image if exists
+    if (option.image) {
+      setTimeout(() => {
+        const responseImage = {
+          id: Date.now() + 1,
+          image: option.image,
+          isUser: false,
+          time: new Date()
+        };
+        setMessages(prev => [...prev, responseImage]);
+      }, 500);
+    }
+    
+    setShowOptions(false);
+    
+    // Show feedback form after a delay
+    setTimeout(() => {
+      showFeedbackForm();
+    }, 1000);
+  };
+  
+  // Show feedback form
+  const showFeedbackForm = () => {
+    const feedbackMessage = {
+      id: Date.now(),
+      text: "How was your experience with mDojo today?",
+      isUser: false,
+      time: new Date(),
+      isFeedback: true
+    };
+    
+    setMessages(prev => [...prev, feedbackMessage]);
+    setChatState(CHAT_STATES.FEEDBACK);
+  };
+
+  // Handle feedback submission
+  const handleFeedbackSubmit = (feedback) => {
+    if (feedback && feedback.trim()) {
+      // Add feedback to chat data
+      setChatData(prev => ({
+        ...prev,
+        feedback: feedback.trim()
+      }));
+    
+    // Add thank you message
+    const thankYouMessage = {
+      id: Date.now(),
+      text: "Thank you for your feedback! We appreciate your time.",
       isUser: false,
       time: new Date()
     };
     
-    setMessages(prev => [...prev, question]);
-    setChatState(CHAT_STATES.FOLLOW_UP);
-  };
-
-  // Handle follow-up response
-  const handleFollowUpResponse = () => {
-    const responseText = message.trim();
-    if (!responseText) return;
+    setMessages(prev => [...prev, thankYouMessage]);
+    setChatState(CHAT_STATES.THANK_YOU);
     
-    // Add user's response
-    const userResponse = {
-      id: Date.now(),
-      text: responseText,
-      isUser: true,
-      time: new Date()
-    };
-    
-    setMessages(prev => [...prev, userResponse]);
-    setMessage('');
-    
-    // Update chat data
-    setChatData(prev => ({
-      ...prev,
-      responses: [...(prev.responses || []), responseText]
-    }));
-    
-    // Move to feedback state
-    setTimeout(() => showFeedbackRequest(), 800);
-  };
+    // Save chat data to Firestore
+    saveChatData();
+  } else {
+    // If no feedback provided, just show thank you
+    showThankYou();
+  }
+};
 
   // Show feedback request
   const showFeedbackRequest = () => {
@@ -266,23 +333,6 @@ const ChatScreen = () => {
     
     setMessages(prev => [...prev, feedbackQuestion]);
     setChatState(CHAT_STATES.FEEDBACK);
-  };
-
-  // Handle feedback submission
-  const handleFeedbackSubmit = () => {
-    if (message.trim()) {
-      // Add feedback to chat data
-      setChatData(prev => ({
-        ...prev,
-        feedback: message
-      }));
-      
-      // Save chat data to Firestore
-      saveChatData();
-    }
-    
-    // Show thank you message
-    showThankYou();
   };
 
   // Save chat data to Firestore
@@ -394,44 +444,102 @@ const ChatScreen = () => {
     return disabled;
   };
 
-  // Render mood selection buttons
+  // Render mood selection buttons with enhanced UI
   const renderMoodSelection = () => {
     if (chatState !== CHAT_STATES.MOOD_SELECTION) return null;
     
     return (
-      <View style={styles.moodContainer}>
-        {MOODS.map(mood => (
-          <TouchableOpacity
-            key={mood.id}
-            style={[
-              styles.moodButton,
-              { backgroundColor: mood.color },
-              selectedMood === mood.id && styles.selectedMoodButton
-            ]}
-            onPress={() => handleMoodSelect(mood.id)}
-          >
-            <Text style={styles.moodText}>{mood.label}</Text>
-          </TouchableOpacity>
-        ))}
+      <View style={styles.moodSelectionContainer}>
+        <Text style={styles.sectionTitle}>How are you feeling today?</Text>
+        <View style={styles.moodGrid}>
+          {MOODS.map((mood) => (
+            <TouchableOpacity
+              key={mood.id}
+              style={[
+                styles.moodCard,
+                selectedMood === mood.id && styles.selectedMoodCard,
+                { borderColor: mood.color }
+              ]}
+              onPress={() => handleMoodSelect(mood.id)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.moodEmoji}>{mood.emoji}</Text>
+              <Text style={styles.moodLabel}>{mood.label}</Text>
+              {selectedMood === mood.id && (
+                <View style={[styles.selectionIndicator, { backgroundColor: mood.color }]} />
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
       </View>
     );
   };
 
+// Render follow-up options
+const renderFollowUpOptions = () => {
+  if (chatState !== CHAT_STATES.FOLLOW_UP || !showOptions) return null;
+  
   return (
-    <SafeAreaView style={styles.safeArea}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.logoContainer}>
-          <Image 
-            source={mahindraLogo}
-            style={styles.logo} 
-            resizeMode="contain"
-          />
-        </View>
-        <View style={styles.chatTitleContainer}>
-          <Text style={styles.chatTitle}>mDojo</Text>
+    <View style={styles.optionsContainer}>
+      <ScrollView 
+        horizontal 
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.optionsScrollContent}
+      >
+        {FOLLOW_UP_QUESTIONS[selectedMood]?.options.map((option, index) => (
+          <TouchableOpacity
+            key={index}
+            style={styles.optionButton}
+            onPress={() => handleOptionSelect(option)}
+          >
+            <Text style={styles.optionText}>{option.text}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </View>
+  );
+};
+
+// Render feedback form
+const renderFeedbackForm = () => {
+  if (chatState !== CHAT_STATES.FEEDBACK) return null;
+  
+  return (
+    <View style={styles.feedbackContainer}>
+      <Text style={styles.feedbackQuestion}>How was your experience with mDojo today?</Text>
+      <View style={styles.emojiContainer}>
+        {[1, 2, 3, 4, 5].map((rating) => (
+          <TouchableOpacity
+            key={rating}
+            onPress={() => handleFeedbackSubmit(rating)}
+            style={styles.emojiButton}
+          >
+            <Text style={styles.emoji}>
+              {rating <= 3 ? '😞' : rating === 4 ? '😊' : '😍'}
+            </Text>
+            <Text style={styles.emojiLabel}>
+              {rating <= 2 ? 'Poor' : rating === 3 ? 'Okay' : rating === 4 ? 'Good' : 'Great!'}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+};
+
+return (
+  <SafeAreaView style={styles.safeArea}>
+    {/* Header */}
+    <View style={styles.header}>
+      <View style={styles.logoContainer}>
+        <View style={styles.logoPlaceholder}>
+          <Text style={styles.logoText}>Mahindra</Text>
         </View>
       </View>
+      <View style={styles.chatTitleContainer}>
+        <Text style={styles.chatTitle}>mDojo</Text>
+      </View>
+    </View>
 
       {/* Chat Messages */}
       <KeyboardAvoidingView 
@@ -464,6 +572,8 @@ const ChatScreen = () => {
             </Animated.View>
           ))}
           {renderMoodSelection()}
+          {renderFollowUpOptions()}
+          {renderFeedbackForm()}
         </ScrollView>
 
         {/* Input Area - Only show for certain states */}
@@ -519,7 +629,6 @@ const ChatScreen = () => {
     </SafeAreaView>
   );
 };
-
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -543,6 +652,19 @@ const styles = StyleSheet.create({
   logoContainer: {
     width: 100,
     height: 30,
+  },
+  logoPlaceholder: {
+    width: 100,
+    height: 30,
+    backgroundColor: '#fff',
+    borderRadius: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logoText: {
+    color: '#E31937',
+    fontWeight: 'bold',
+    fontSize: 16,
   },
   logo: {
     width: '100%',
@@ -659,36 +781,68 @@ const styles = StyleSheet.create({
     shadowOpacity: 0,
   },
   // Mood selection styles
-  moodContainer: {
+  moodSelectionContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    margin: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  moodGrid: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: 10,
-    marginBottom: 15,
-    paddingHorizontal: 20,
+    justifyContent: 'space-between',
     flexWrap: 'wrap',
   },
-  moodButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 15,
-    borderRadius: 20,
-    minWidth: 100,
-    alignItems: 'center',
+  moodCard: {
+    width: '30%',
+    aspectRatio: 1,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    borderWidth: 2,
     justifyContent: 'center',
-    marginVertical: 5,
-    elevation: 2,
+    alignItems: 'center',
+    padding: 12,
+    marginBottom: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+    position: 'relative',
+    overflow: 'hidden',
   },
-  selectedMoodButton: {
+  selectedMoodCard: {
     transform: [{ scale: 1.05 }],
-    elevation: 4,
+    elevation: 8,
+    shadowRadius: 8,
   },
-  moodText: {
-    color: '#fff',
-    fontWeight: '600',
+  moodEmoji: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  moodLabel: {
     fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    textAlign: 'center',
+  },
+  selectionIndicator: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 6,
   },
 });
 
