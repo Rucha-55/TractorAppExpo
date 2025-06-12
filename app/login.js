@@ -23,6 +23,7 @@ import { db } from '../config/firebase';
 
 // Import LogBox to ignore specific warnings
 import { LogBox } from 'react-native';
+import { router } from 'expo-router';
 
 // Ignore specific warnings
 LogBox.ignoreLogs([
@@ -155,16 +156,18 @@ const LoginScreen = () => {
         const docRef = await addDoc(collection(db, 'employee_logins'), loginData);
         console.log('📝 Login recorded with ID:', docRef.id);
         
-        // Success - clear input and show success message
-        setEmployeeId('');
-        Alert.alert(
-          'Welcome!',
-          `Welcome ${empId}!\nLogin recorded successfully.`,
-          [{ text: 'OK', onPress: () => console.log('User acknowledged welcome') }]
-        );
+        // Show loading state
+        setIsLoading(true);
         
-        // You can add navigation to the main app here
-        // navigation.navigate('Home');
+        // Add a small delay for better UX
+        await new Promise(resolve => setTimeout(resolve, 800));
+        
+        // Navigate to chat screen
+        router.push('/chat');
+        
+        // Reset loading state after navigation
+        setIsLoading(false);
+        setEmployeeId('');
         
       } catch (firebaseError) {
         console.error('🔥 Firestore error:', {

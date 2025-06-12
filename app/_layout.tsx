@@ -75,6 +75,7 @@ export default function RootLayout() {
         <StatusBar style="auto" />
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="login" />
+          <Stack.Screen name="chat" />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="+not-found" />
         </Stack>
