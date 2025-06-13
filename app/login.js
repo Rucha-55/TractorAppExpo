@@ -34,6 +34,23 @@ LogBox.ignoreLogs([
 
 // Persistence is enabled in the Firebase config file
 
+const safeNavigate = (path) => {
+  if (Platform.OS === 'web') {
+    setTimeout(() => {
+      router.push(path);
+    }, 0);
+  } else {
+    router.push(path);
+  }
+};
+
+const showAlert = (title, message) => {
+  if (Platform.OS === 'web') {
+    window.alert(`${title}\n\n${message}`);
+  } else {
+    Alert.alert(title, message);
+  }
+};
 const { width } = Dimensions.get('window');
 
 // Initialize Firebase with the configuration from config/firebase.js
@@ -113,14 +130,16 @@ const LoginScreen = () => {
       // Basic validation
       if (!empId) {
         console.log('❌ No employee ID provided');
-        Alert.alert('Error', 'Please enter your employee ID');
+        
+        showAlert('Error', 'Please enter your employee ID');
         return;
       }
 
       // Validate ID format (EMP001-EMP010)
       if (!/^EMP0(0[1-9]|10)$/.test(empId)) {
         console.log('❌ Invalid employee ID format:', empId);
-        Alert.alert('Error', 'Invalid employee ID. Please enter a valid ID (EMP001-EMP010)');
+      
+        showAlert('Error', 'Invalid employee ID. Please enter a valid ID (EMP001-EMP010)');
         return;
       }
 
@@ -133,7 +152,8 @@ const LoginScreen = () => {
         
         if (!employeeExists) {
           console.log(`❌ Employee ${empId} not found or inactive`);
-          Alert.alert('Access Denied', 'Employee ID not found or inactive. Please contact support.');
+      
+          showAlert('Access Denied', 'Employee ID not found or inactive. Please contact support.');
           return;
         }
 
@@ -145,7 +165,7 @@ const LoginScreen = () => {
           loginTime: serverTimestamp(),
           deviceInfo: {
             platform: Platform.OS,
-            osVersion: Platform.Version,
+            osVersion: Platform.Version ?? 'unknown',
             model: Platform.isTV ? 'TV' : 'Mobile',
             timestamp: new Date().toISOString()
           },
@@ -162,8 +182,8 @@ const LoginScreen = () => {
         // Add a small delay for better UX
         await new Promise(resolve => setTimeout(resolve, 800));
         
-        // Navigate to chat screen
-        router.push('/chat');
+        safeNavigate('/chat');
+
         
         // Reset loading state after navigation
         setIsLoading(false);
@@ -185,11 +205,9 @@ const LoginScreen = () => {
           timestamp: new Date().toISOString()
         });
         
-        Alert.alert(
-          'Error',
-          'Unable to process your login. Please check your connection and try again.',
-          [{ text: 'OK' }]
-        );
+        
+        showAlert('Error', 'Unable to process your login. Please check your connection and try again.');
+        
       }
       
     } catch (error) {
@@ -198,11 +216,8 @@ const LoginScreen = () => {
         stack: error?.stack
       });
       
-      Alert.alert(
-        'Unexpected Error',
-        'An unexpected error occurred. Please restart the app and try again.',
-        [{ text: 'OK' }]
-      );
+      
+      showAlert('Unexpected Error', 'An unexpected error occurred. Please restart the app and try again.');
     } finally {
       setIsLoading(false);
     }
