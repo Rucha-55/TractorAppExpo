@@ -19,8 +19,7 @@ import {
 // Firebase imports
 import { initializeApp } from 'firebase/app';
 import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
-import { db } from '../config/firebase';
-import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
+import { db, adminLogin } from '../config/firebase';
 
 // Import LogBox to ignore specific warnings
 import { LogBox } from 'react-native';
@@ -341,23 +340,18 @@ const LoginScreen = () => {
                     return;
                   }
                   try {
-                    const auth = getAuth();
-                    const userCredential = await signInWithEmailAndPassword(auth, adminEmail, adminPassword);
-                    // Successful login
+                    // Firestore-based admin login
+                    const result = await adminLogin(adminEmail, adminPassword);
                     setAdminLoading(false);
-                    showAlert('Success', 'Admin login successful!');
-                    // safeNavigate('/adminpanel'); // Uncomment and set your admin route
+                    if (result.success) {
+                      showAlert('Success', 'Admin login successful!');
+                      safeNavigate('/adminpanel'); // Set your admin panel route
+                    } else {
+                      showAlert('Error', result.message || 'Invalid credentials');
+                    }
                   } catch (error) {
                     setAdminLoading(false);
-                    let msg = 'Login failed. Please check your credentials.';
-                    if (error.code === 'auth/user-not-found') {
-                      msg = 'No user found with this email.';
-                    } else if (error.code === 'auth/wrong-password') {
-                      msg = 'Incorrect password.';
-                    } else if (error.code === 'auth/invalid-email') {
-                      msg = 'Invalid email address.';
-                    }
-                    showAlert('Error', msg);
+                    showAlert('Error', error.message || 'Login failed. Please try again.');
                   }
                 }}
                 disabled={adminLoading}
