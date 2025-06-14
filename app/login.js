@@ -340,11 +340,25 @@ const LoginScreen = () => {
                     setAdminLoading(false);
                     return;
                   }
-                  // Always show success regardless of credentials
-                  await new Promise(r => setTimeout(r, 500));
-                  setAdminLoading(false);
-                  showAlert('Success', 'Admin login successful!');
-                  // safeNavigate('/adminpanel'); // Uncomment and set your admin route
+                  try {
+                    const auth = getAuth();
+                    const userCredential = await signInWithEmailAndPassword(auth, adminEmail, adminPassword);
+                    // Successful login
+                    setAdminLoading(false);
+                    showAlert('Success', 'Admin login successful!');
+                    // safeNavigate('/adminpanel'); // Uncomment and set your admin route
+                  } catch (error) {
+                    setAdminLoading(false);
+                    let msg = 'Login failed. Please check your credentials.';
+                    if (error.code === 'auth/user-not-found') {
+                      msg = 'No user found with this email.';
+                    } else if (error.code === 'auth/wrong-password') {
+                      msg = 'Incorrect password.';
+                    } else if (error.code === 'auth/invalid-email') {
+                      msg = 'Invalid email address.';
+                    }
+                    showAlert('Error', msg);
+                  }
                 }}
                 disabled={adminLoading}
                 activeOpacity={0.9}
