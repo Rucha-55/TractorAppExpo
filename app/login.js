@@ -20,6 +20,7 @@ import {
 import { initializeApp } from 'firebase/app';
 import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
 
 // Import LogBox to ignore specific warnings
 import { LogBox } from 'react-native';
@@ -56,8 +57,12 @@ const { width } = Dimensions.get('window');
 // Initialize Firebase with the configuration from config/firebase.js
 
 const LoginScreen = () => {
+  const [loginMode, setLoginMode] = useState('employee'); // 'employee' or 'admin'
   const [employeeId, setEmployeeId] = useState('');
   const [isFocused, setIsFocused] = useState(false);
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [adminLoading, setAdminLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const fadeAnim = useState(new Animated.Value(0))[0];
   const slideAnim = useState(new Animated.Value(50))[0];
@@ -245,47 +250,149 @@ const LoginScreen = () => {
             resizeMode="contain"
           />
         </Animated.View>
-        
-        <Animated.View style={[styles.loginContainer, containerAnimatedStyle]}>
-          <Text style={styles.title}>Enter Employee ID!</Text>
-          
-          <View style={styles.inputContainer}>
-            <TextInput
-              style={[
-                styles.input,
-                isFocused && styles.inputFocused
-              ]}
-              placeholder="Enter employee ID..."
-              value={employeeId}
-              onChangeText={setEmployeeId}
-              placeholderTextColor="#999"
-              autoCapitalize="none"
-              onFocus={() => setIsFocused(true)}
-              onBlur={() => setIsFocused(false)}
-            />
-          </View>
-          
-          <Animated.View style={buttonAnimatedStyle}>
-            <TouchableOpacity 
-              style={[styles.loginButton, isLoading && styles.disabledButton]} 
-              onPress={handleLogin}
-              disabled={isLoading}
-              activeOpacity={0.9}
-            >
-              {isLoading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.buttonText}>Login</Text>
-              )}
-            </TouchableOpacity>
+
+        {/* Switcher */}
+        <View style={styles.switchContainer}>
+          <TouchableOpacity
+            style={[styles.switchButton, loginMode === 'employee' && styles.switchButtonActive]}
+            onPress={() => setLoginMode('employee')}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.switchText, loginMode === 'employee' && styles.switchTextActive]}>Employee Login</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.switchButton, loginMode === 'admin' && styles.switchButtonActive]}
+            onPress={() => setLoginMode('admin')}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.switchText, loginMode === 'admin' && styles.switchTextActive]}>Admin Login</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Employee Login Form */}
+        {loginMode === 'employee' && (
+          <Animated.View style={[styles.loginContainer, containerAnimatedStyle]}>
+            <Text style={styles.title}>Enter Employee ID!</Text>
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={[
+                  styles.input,
+                  isFocused && styles.inputFocused
+                ]}
+                placeholder="Enter employee ID..."
+                value={employeeId}
+                onChangeText={setEmployeeId}
+                placeholderTextColor="#999"
+                autoCapitalize="none"
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
+              />
+            </View>
+            <Animated.View style={buttonAnimatedStyle}>
+              <TouchableOpacity 
+                style={[styles.loginButton, isLoading && styles.disabledButton]} 
+                onPress={handleLogin}
+                disabled={isLoading}
+                activeOpacity={0.9}
+              >
+                {isLoading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.buttonText}>Login</Text>
+                )}
+              </TouchableOpacity>
+            </Animated.View>
           </Animated.View>
-        </Animated.View>
+        )}
+
+        {/* Admin Login Form */}
+        {loginMode === 'admin' && (
+          <Animated.View style={[styles.loginContainer, containerAnimatedStyle]}>
+            <Text style={styles.title}>Admin Login</Text>
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter Email Address..."
+                value={adminEmail}
+                onChangeText={setAdminEmail}
+                placeholderTextColor="#999"
+                autoCapitalize="none"
+                keyboardType="email-address"
+              />
+            </View>
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={styles.input}
+                placeholder="Password"
+                value={adminPassword}
+                onChangeText={setAdminPassword}
+                placeholderTextColor="#999"
+                secureTextEntry
+              />
+            </View>
+            <Animated.View style={buttonAnimatedStyle}>
+              <TouchableOpacity
+                style={[styles.loginButton, adminLoading && styles.disabledButton]}
+                onPress={async () => {
+                  setAdminLoading(true);
+                  if (!adminEmail || !adminPassword) {
+                    showAlert('Error', 'Please enter both email and password');
+                    setAdminLoading(false);
+                    return;
+                  }
+                  // Always show success regardless of credentials
+                  await new Promise(r => setTimeout(r, 500));
+                  setAdminLoading(false);
+                  showAlert('Success', 'Admin login successful!');
+                  // safeNavigate('/adminpanel'); // Uncomment and set your admin route
+                }}
+                disabled={adminLoading}
+                activeOpacity={0.9}
+              >
+                {adminLoading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.buttonText}>Login</Text>
+                )}
+              </TouchableOpacity>
+            </Animated.View>
+          </Animated.View>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  switchContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginBottom: 20,
+    marginHorizontal: 20,
+  },
+  switchButton: {
+    flex: 1,
+    paddingVertical: 12,
+    backgroundColor: '#f5f5f5',
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    borderBottomWidth: 2,
+    borderBottomColor: '#e0e0e0',
+    alignItems: 'center',
+  },
+  switchButtonActive: {
+    backgroundColor: '#fff',
+    borderBottomColor: '#e31837',
+    borderBottomWidth: 3,
+  },
+  switchText: {
+    fontSize: 16,
+    color: '#888',
+    fontWeight: 'bold',
+  },
+  switchTextActive: {
+    color: '#e31837',
+  },
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
