@@ -186,7 +186,7 @@ const LoginScreen = () => {
         // Add a small delay for better UX
         await new Promise(resolve => setTimeout(resolve, 800));
         
-        safeNavigate('/chat');
+        safeNavigate({ pathname: '/chat', params: { employeeId: empId } });
 
         
         // Reset loading state after navigation
