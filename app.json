@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "TractorAppExpo",
-    "slug": "TractorAppExpo",
+    "name": "Mahinra Chatbot",
+    "slug": "Mahinra Chatbot",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/logo.png",
-    "scheme": "tractorappexpo",
+    "scheme": "Mahinra Chatbot",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
