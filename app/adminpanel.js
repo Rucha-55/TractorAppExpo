@@ -939,6 +939,27 @@ const AdminList = () => {
 
   const handleAddAdmin = async () => {
     try {
+      const { username, email } = newAdmin;
+
+      // Check if admin with the same username or email already exists
+      const usernameQuery = query(collection(db, 'register'), where('username', '==', username));
+      const emailQuery = query(collection(db, 'register'), where('email', '==', email));
+
+      const [usernameSnapshot, emailSnapshot] = await Promise.all([
+        getDocs(usernameQuery),
+        getDocs(emailQuery),
+      ]);
+
+      if (!usernameSnapshot.empty) {
+        alert('Admin with this username already exists.');
+        return;
+      }
+
+      if (!emailSnapshot.empty) {
+        alert('Admin with this email already exists.');
+        return;
+      }
+
       await addDoc(collection(db, 'register'), newAdmin);
       setAddModalVisible(false);
       setNewAdmin({ username: '', email: '', password: '' });
@@ -1174,6 +1195,17 @@ const EmployeeList = () => {
 
   const handleAddEmployee = async () => {
     try {
+      const { empId } = newEmployee;
+
+      // Check if employee with the same empId already exists
+      const empIdQuery = query(collection(db, 'employees'), where('empId', '==', empId));
+      const empIdSnapshot = await getDocs(empIdQuery);
+
+      if (!empIdSnapshot.empty) {
+        alert('Employee with this ID already exists.');
+        return;
+      }
+
       await addDoc(collection(db, 'employees'), newEmployee);
       setAddModalVisible(false);
       setNewEmployee({ empId: '', name: '', department: '', role: '' });
