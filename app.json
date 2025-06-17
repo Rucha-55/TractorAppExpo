@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Mahinra Chatbot",
-    "slug": "Mahinra Chatbot",
+    "name": "MahindraChatbot",
+    "slug": "MahindraChatbot",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/logo.png",
-    "scheme": "Mahinra Chatbot",
+    "scheme": "MahindraChatbot",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -16,7 +16,8 @@
         "foregroundImage": "./assets/images/logo.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.rucha_55.mahindrachatbot"
     },
     "web": {
       "bundler": "metro",
