@@ -1,5 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
+import { useRouter } from 'expo-router';
 import { addDoc, collection, deleteDoc, doc, getDocs, query, updateDoc, where } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import {
@@ -367,6 +368,7 @@ const createStyles = (windowWidth) => StyleSheet.create({
 const styles = createStyles(Dimensions.get('window').width);
 
 const AdminPanel = () => {
+  const router = useRouter();
   // ... (keep all your existing state and functions until renderContent)
    const [activeTab, setActiveTab] = useState('dashboard');
   const [adminCount, setAdminCount] = useState(null);
@@ -487,6 +489,10 @@ const AdminPanel = () => {
       setSidebarVisible(false);
     }
   };
+
+  const handleLogout = () => {
+    router.replace('/login');
+  };
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
@@ -598,6 +604,13 @@ const AdminPanel = () => {
               onPress={() => handleTabChange('charts')}
             >
               <Text style={styles.menuText}>Charts</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={handleLogout}
+            >
+              <Text style={styles.menuText}>Logout</Text>
             </TouchableOpacity>
           </View>
         )}
