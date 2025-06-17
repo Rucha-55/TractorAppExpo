@@ -352,7 +352,16 @@ const createStyles = (windowWidth) => StyleSheet.create({
   },
   moodDateCell: {
     width: 150
-  }
+  },
+  searchBar: {
+    height: 40,
+    borderColor: '#ccc',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 15,
+    marginBottom: 15,
+    backgroundColor: '#fff',
+  },
 });
 
 const styles = createStyles(Dimensions.get('window').width);
@@ -630,6 +639,8 @@ const DepartmentCharts = () => {
   const [showEmployeeDetails, setShowEmployeeDetails] = useState(false);
   const [departmentEmployees, setDepartmentEmployees] = useState([]);
   const [employeeMoodDetails, setEmployeeMoodDetails] = useState([]);
+  const [filteredEmployeeMoodDetails, setFilteredEmployeeMoodDetails] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -717,6 +728,17 @@ const DepartmentCharts = () => {
     fetchDepartmentData();
   }, [selectedDepartment]);
 
+  useEffect(() => {
+    setFilteredEmployeeMoodDetails(
+      employeeMoodDetails.filter(
+        (item) =>
+          (item.name && item.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+          (item.mood && item.mood.toLowerCase().includes(searchQuery.toLowerCase())) ||
+          (item.elaboration && item.elaboration.toLowerCase().includes(searchQuery.toLowerCase()))
+      )
+    );
+  }, [searchQuery, employeeMoodDetails]);
+
   const getMoodColor = (mood) => {
     switch(mood.toUpperCase()) {
       case 'GLAD': return '#2ecc71';
@@ -790,7 +812,14 @@ const DepartmentCharts = () => {
           )}
 
           {showEmployeeDetails && (
-            <View style={styles.employeeMoodTable}>
+            <>
+              <TextInput
+                style={styles.searchBar}
+                placeholder="Search by name, mood, or comments..."
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+              <View style={styles.employeeMoodTable}>
               <ScrollView horizontal>
                 <View>
                   <View style={styles.moodTableHeader}>
@@ -802,9 +831,9 @@ const DepartmentCharts = () => {
                     <Text style={[styles.moodHeaderCell, styles.moodDateCell]}>Time</Text>
                   </View>
                   
-                  {employeeMoodDetails.length > 0 ? (
+                  {filteredEmployeeMoodDetails.length > 0 ? (
                     <FlatList
-                      data={employeeMoodDetails}
+                      data={filteredEmployeeMoodDetails}
                       keyExtractor={(item) => item.id}
                       renderItem={({ item }) => (
                         <View style={styles.moodRow}>
@@ -831,6 +860,7 @@ const DepartmentCharts = () => {
                 </View>
               </ScrollView>
             </View>
+            </>
           )}
         </>
       )}
@@ -842,6 +872,8 @@ const DepartmentCharts = () => {
 const AdminList = () => {
   // ... (keep all your existing state and functions)
   const [admins, setAdmins] = useState([]);
+  const [filteredAdmins, setFilteredAdmins] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [addModalVisible, setAddModalVisible] = useState(false);
@@ -867,6 +899,16 @@ const AdminList = () => {
   useEffect(() => {
     fetchAdmins();
   }, []);
+
+  useEffect(() => {
+    setFilteredAdmins(
+      admins.filter(
+        (admin) =>
+          (admin.username && admin.username.toLowerCase().includes(searchQuery.toLowerCase())) ||
+          (admin.email && admin.email.toLowerCase().includes(searchQuery.toLowerCase()))
+      )
+    );
+  }, [searchQuery, admins]);
 
   const handleDelete = async (id) => {
     try {
@@ -923,6 +965,14 @@ const AdminList = () => {
       {/* Admin Profile Heading */}
       <Text style={styles.sectionTitle}>Admin Profile</Text>
 
+      {/* Search Bar */}
+      <TextInput
+        style={styles.searchBar}
+        placeholder="Search by username or email..."
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+      />
+
       {/* Horizontal Scroll Container - CHANGED TO ScrollView */}
       <ScrollView horizontal showsHorizontalScrollIndicator={true}>
         {/* Admin Table */}
@@ -937,13 +987,13 @@ const AdminList = () => {
           </View>
 
           {/* Table Rows */}
-          {admins.length === 0 ? (
+          {filteredAdmins.length === 0 ? (
             <View style={styles.noDataRow}>
               <Text style={styles.noDataText}>No admins found</Text>
             </View>
           ) : (
             <FlatList
-              data={admins}
+              data={filteredAdmins}
               keyExtractor={item => item.id}
               renderItem={({ item }) => (
                 <View style={styles.tableRow}>
@@ -1054,6 +1104,8 @@ const AdminList = () => {
 
 const EmployeeList = () => {
   const [employees, setEmployees] = useState([]);
+  const [filteredEmployees, setFilteredEmployees] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [addModalVisible, setAddModalVisible] = useState(false);
@@ -1080,6 +1132,18 @@ const EmployeeList = () => {
   useEffect(() => {
     fetchEmployees();
   }, []);
+
+  useEffect(() => {
+    setFilteredEmployees(
+      employees.filter(
+        (employee) =>
+          (employee.name && employee.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+          (employee.empId && String(employee.empId).toLowerCase().includes(searchQuery.toLowerCase())) ||
+          (employee.department && employee.department.toLowerCase().includes(searchQuery.toLowerCase())) ||
+          (employee.role && employee.role.toLowerCase().includes(searchQuery.toLowerCase()))
+      )
+    );
+  }, [searchQuery, employees]);
 
   const handleDelete = async (id) => {
     try {
@@ -1137,6 +1201,14 @@ const EmployeeList = () => {
       {/* Employee Data Heading */}
       <Text style={styles.sectionTitle}>Employee Data</Text>
 
+      {/* Search Bar */}
+      <TextInput
+        style={styles.searchBar}
+        placeholder="Search by ID, name, department, or role..."
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+      />
+
       {/* Horizontal Scroll Container */}
       <ScrollView horizontal showsHorizontalScrollIndicator={true}>
         {/* Employee Table */}
@@ -1152,13 +1224,13 @@ const EmployeeList = () => {
           </View>
 
           {/* Table Rows */}
-          {employees.length === 0 ? (
+          {filteredEmployees.length === 0 ? (
             <View style={styles.noDataRow}>
               <Text style={styles.noDataText}>No employees found</Text>
             </View>
           ) : (
             <FlatList
-              data={employees}
+              data={filteredEmployees}
               keyExtractor={item => item.id}
               renderItem={({ item }) => (
                 <View style={styles.tableRow}>
