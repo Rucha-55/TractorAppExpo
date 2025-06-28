@@ -40,4 +40,12 @@ app-example
 
 # Service account keys
 serviceAccountKey.json
-*.json
+
+# Allow specific JSON files
+!app.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!firebase.json
+
+# JSON files are now allowed

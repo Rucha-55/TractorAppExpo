@@ -1,13 +1,24 @@
 {
   "expo": {
-    "name": "MahindraChatbot",
-    "slug": "MahindraChatbot",
+    "name": "TractorApp",
+    "slug": "TractorAppExpo",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/logo.png",
-    "scheme": "MahindraChatbot",
+    "scheme": "tractorappexpo",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "platforms": [
+      "android",
+      "ios",
+      "web"
+    ],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "updates": {
+      "fallbackToCacheTimeout": 0
+    },
     "ios": {
       "supportsTablet": true
     },
@@ -38,6 +49,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d8267121-02fd-43bb-bba7-4fb967ad301e"
+      }
     }
   }
 }
