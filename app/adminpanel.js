@@ -1,15 +1,20 @@
 import { MaterialIcons } from '@expo/vector-icons';
+import { Platform, View as RNView, Alert } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { useRouter } from 'expo-router';
-import { addDoc, collection, deleteDoc, doc, getDocs, query, updateDoc, where } from 'firebase/firestore';
-import { useEffect, useState } from 'react';
+import * as Print from 'expo-print';
+import { captureRef } from 'react-native-view-shot';
+import { addDoc, collection, deleteDoc, doc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore';
+import { useEffect, useState, useRef } from 'react';
+
 import {
   ActivityIndicator,
   Button,
   Dimensions,
   FlatList,
   Modal,
-
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -136,18 +141,27 @@ const createStyles = (windowWidth) => StyleSheet.create({
   cardValue: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#2c3e50',
   },
   chartContainer: {
     backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 15,
-    marginBottom: 20,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    borderRadius: 8,
+    padding: 10,
+    marginVertical: 10,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  chart: {
+    marginVertical: 8,
+    borderRadius: 8,
   },
   sectionTitle: {
     fontSize: 18,
@@ -162,81 +176,112 @@ const createStyles = (windowWidth) => StyleSheet.create({
   adminHeader: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    alignItems: 'center',
-    marginBottom: 20,
+    padding: 10,
+    flexWrap: 'wrap',
+    gap: 10,
   },
   addButton: {
     backgroundColor: '#E31937',
-    padding: 10,
+    padding: 12,
     borderRadius: 5,
+    alignItems: 'center',
+    marginBottom: 15,
+    elevation: 2,
+    marginHorizontal: 5,
   },
   addButtonText: {
     color: '#fff',
     fontWeight: 'bold',
   },
- horizontalScrollContainer: {
+  horizontalScrollContainer: {
     flex: 1,
   },
   adminTable: {
-    minWidth: 800, // Set a minimum width that fits all columns
+    width: '100%',
     backgroundColor: '#fff',
-    borderRadius: 5,
+    borderRadius: 10,
     overflow: 'hidden',
-    elevation: 2,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   tableHeader: {
     flexDirection: 'row',
-    backgroundColor: '#f0f0f0',
-    paddingVertical: 12,
+    backgroundColor: '#2c3e50',
+    paddingVertical: 15,
+    borderTopLeftRadius: 10,
+    borderTopRightRadius: 10,
   },
   tableHeaderCell: {
-    fontWeight: 'bold',
+    fontWeight: '600',
     textAlign: 'center',
-    color: '#333',
-    paddingHorizontal: 8,
+    color: '#fff',
+    paddingHorizontal: 12,
+    fontSize: 14,
   },
   tableRow: {
     flexDirection: 'row',
     borderBottomWidth: 1,
-    borderColor: '#eee',
-    paddingVertical: 12,
+    borderColor: '#f0f0f0',
+    paddingVertical: 14,
     alignItems: 'center',
+    backgroundColor: '#fff',
+    transition: 'all 0.2s ease',
+  },
+  tableRowHover: {
+    backgroundColor: '#f8f9fa',
+    transform: [{ scale: 1.005 }],
   },
   tableCell: {
     textAlign: 'center',
-    color: '#444',
-    paddingHorizontal: 8,
+    color: '#333',
+    paddingHorizontal: 12,
+    fontSize: 13,
   },
-  // Specific cell widths
+  // Specific cell widths with better distribution
   usernameCell: {
-    width: 150,
+    width: 160,
   },
   emailCell: {
-    width: 200,
+    width: 240,
   },
   passwordCell: {
-    width: 150,
+    width: 140,
   },
   idCell: {
-    width: 100,
+    width: 80,
   },
   nameCell: {
-    width: 200,
+    width: 180,
   },
   deptCell: {
-    width: 150,
+    width: 160,
   },
   roleCell: {
-    width: 150,
+    width: 140,
   },
   actionCell: {
-    width: 100,
+    width: 140,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 6,
   },
   actionButton: {
-    paddingVertical: 5,
-    paddingHorizontal: 8,
-    borderRadius: 4,
-    marginHorizontal: 2,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 5,
+    minWidth: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 4,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   editButton: {
     backgroundColor: '#FFA000',
@@ -246,16 +291,65 @@ const createStyles = (windowWidth) => StyleSheet.create({
   },
   actionButtonText: {
     color: '#fff',
-    fontWeight: 'bold',
+    fontWeight: '500',
     fontSize: 12,
   },
+  statusBadge: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    fontSize: 12,
+    fontWeight: '500',
+    textAlign: 'center',
+    minWidth: 80,
+  },
+  activeStatus: {
+    backgroundColor: '#e3f7e8',
+    color: '#1a7f3b',
+  },
+  inactiveStatus: {
+    backgroundColor: '#ffebee',
+    color: '#c62828',
+  },
   noDataRow: {
-    padding: 20,
+    padding: 40,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    marginTop: 10,
   },
   noDataText: {
-    color: '#888',
+    color: '#666',
+    fontSize: 16,
+    marginTop: 10,
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  noDataIcon: {
+    fontSize: 48,
+    color: '#bdbdbd',
+    marginBottom: 10,
+  },
+  tableContainer: {
+    borderRadius: 10,
+    overflow: 'hidden',
+    marginBottom: 20,
+  },
+  tableScrollView: {
+    maxHeight: 500,
+  },
+  loadingContainer: {
+    padding: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 10,
+  },
+  loadingText: {
+    marginTop: 10,
+    color: '#666',
+    fontSize: 14,
   },
   modalContainer: {
     flex: 1,
@@ -313,18 +407,25 @@ const createStyles = (windowWidth) => StyleSheet.create({
     marginTop: 20,
     backgroundColor: '#fff',
     borderRadius: 5,
-    overflow: 'hidden',
-    elevation: 2
+    overflow: 'scroll',
+    elevation: 2,
+    width: '100%',
   },
   moodTableHeader: {
     flexDirection: 'row',
     backgroundColor: '#f0f0f0',
-    paddingVertical: 12
+    paddingVertical: 12,
+    minWidth: 900, // Ensure minimum width to prevent squeezing
   },
   moodTableCell: {
     padding: 10,
-    textAlign: 'center',
-    color: '#444'
+    textAlign: 'left',
+    fontSize: 12,
+    flexShrink: 0, // Prevent shrinking
+    flexGrow: 0, // Prevent growing
+    overflow: 'visible',
+    minHeight: 40, // Ensure minimum height
+    justifyContent: 'center', // Center content vertically
   },
   moodHeaderCell: {
     fontWeight: 'bold',
@@ -336,23 +437,30 @@ const createStyles = (windowWidth) => StyleSheet.create({
     flexDirection: 'row',
     borderBottomWidth: 1,
     borderColor: '#eee',
-    paddingVertical: 10
+    paddingVertical: 8,
+    minWidth: 900, // Match header width
+    alignItems: 'center', // Center items vertically
   },
-  // Cell widths for mood table
+  // Cell widths for mood table - using flex instead of fixed widths for better responsiveness
   moodNameCell: {
-    width: 150
+    flex: 1.5,
+    minWidth: 120,
   },
   moodDepartmentCell: {
-    width: 150
+    flex: 1.5,
+    minWidth: 120,
   },
   moodMoodCell: {
-    width: 100
+    flex: 1,
+    minWidth: 80,
   },
   moodElaborationCell: {
-    width: 200
+    flex: 2,
+    minWidth: 150,
   },
   moodDateCell: {
-    width: 150
+    flex: 1,
+    minWidth: 100,
   },
   searchBar: {
     height: 40,
@@ -362,6 +470,310 @@ const createStyles = (windowWidth) => StyleSheet.create({
     paddingHorizontal: 15,
     marginBottom: 15,
     backgroundColor: '#fff',
+  },
+  searchContainer: {
+    marginBottom: 16,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  searchInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+    height: 44,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    height: '100%',
+    color: '#333',
+    fontSize: 15,
+  },
+  sidebarHeader: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+  },
+  cellText: {
+    color: '#212529',
+    fontSize: 13,
+  },
+  moodBadge: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  moodText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  feedbackText: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#212529',
+  },
+  tagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 6,
+    gap: 4,
+  },
+  tag: {
+    backgroundColor: '#e9ecef',
+    borderRadius: 4,
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+  },
+  tagText: {
+    fontSize: 11,
+    color: '#495057',
+  },
+  infoRow: {
+    flexDirection: 'row',
+    marginBottom: 4,
+  },
+  infoLabel: {
+    fontSize: 11,
+    color: '#6c757d',
+    marginRight: 4,
+    fontWeight: '500',
+  },
+  infoValue: {
+    fontSize: 12,
+    color: '#212529',
+    flex: 1,
+  },
+  menuCategory: {
+    color: '#7f8c8d',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    fontSize: 12,
+    fontWeight: 'bold',
+    marginTop: 10,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 8,
+  },
+  filterItem: {
+    minWidth: 180,
+    marginBottom: 8,
+  },
+  dateFilterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#E31937',
+    borderRadius: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginLeft: 'auto',
+  },
+  dateFilterText: {
+    marginLeft: 6,
+    color: '#E31937',
+    fontSize: 14,
+  },
+  exportButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E31937',
+    borderRadius: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginLeft: 8,
+  },
+  exportButtonText: {
+    color: '#fff',
+    marginLeft: 6,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  datePickerContainer: {
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#eee',
+  },
+  dateInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  dateInput: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 4,
+    padding: 8,
+    minWidth: 120,
+    fontSize: 14,
+  },
+  dateLabel: {
+    fontSize: 14,
+    color: '#666',
+  },
+  clearDateButton: {
+    marginLeft: 'auto',
+    padding: 6,
+  },
+  clearDateText: {
+    color: '#E31937',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  feedbackContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 6,
+    padding: 12,
+    elevation: 2,
+  },
+  feedbackHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  feedbackTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  resultCount: {
+    fontSize: 14,
+    color: '#666',
+  },
+  tableHeader: {
+    flexDirection: 'row',
+    backgroundColor: '#f8f9fa',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+  },
+  headerCell: {
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRightWidth: 1,
+    borderRightColor: '#e9ecef',
+    backgroundColor: '#f8f9fa',
+  },
+  headerCellContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerCellText: {
+    fontWeight: '600',
+    color: '#495057',
+    fontSize: 13,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  tableHeaderCell: {
+    fontWeight: 'bold',
+    textAlign: 'center',
+    color: '#333',
+    paddingHorizontal: 8,
+  },
+  tableRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+  },
+  evenRow: {
+    backgroundColor: '#fff',
+  },
+  oddRow: {
+    backgroundColor: '#f8f9fa',
+  },
+  cell: {
+    padding: 12,
+    justifyContent: 'center',
+    borderRightWidth: 1,
+    borderRightColor: '#e9ecef',
+  },
+  cellText: {
+    fontSize: 13,
+    color: '#333',
+  },
+  loadingContainer: {
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    marginTop: 8,
+    color: '#6c757d',
+    fontSize: 13,
+  },
+  noDataContainer: {
+    padding: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f8f9fa',
+    borderRadius: 6,
+    margin: 16,
+  },
+  noDataText: {
+    marginTop: 12,
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#6c757d',
+    textAlign: 'center',
+  },
+  noDataSubtext: {
+    marginTop: 4,
+    fontSize: 13,
+    color: '#adb5bd',
+    textAlign: 'center',
+  },
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e9ecef',
+    backgroundColor: '#f8f9fa',
+  },
+  paginationText: {
+    fontSize: 13,
+    color: '#6c757d',
+  },
+  paginationControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  paginationButton: {
+    padding: 6,
+    marginHorizontal: 4,
+    borderRadius: 4,
+  },
+  paginationButtonText: {
+    fontSize: 14,
+    color: '#E31937',
+    fontWeight: '500',
+  },
+  paginationButtonDisabled: {
+    opacity: 0.5,
   },
 });
 
@@ -401,7 +813,7 @@ const AdminPanel = () => {
           deptMap[dept] = (deptMap[dept] || 0) + 1;
         });
         const chartData = Object.keys(deptMap).map(dept => ({
-          label: dept,
+          name: dept,
           value: deptMap[dept],
         }));
         setDepartmentChartData(chartData);
@@ -468,13 +880,19 @@ const AdminPanel = () => {
   }, []);
 
   const getMoodColor = (mood) => {
-    switch(mood.toUpperCase()) {
-      case 'GLAD': return '#2ecc71';
-      case 'MAD': return '#3498db';
-      case 'SAD': return '#e74c3c';
-      case 'NEUTRAL': return '#f39c12';
-      case 'EXCITED': return '#9b59b6';
-      default: return '#95a5a6';
+    if (!mood) return '#9E9E9E'; // Default grey for undefined moods
+    
+    const moodLower = mood.toLowerCase();
+    if (moodLower.includes('happy') || moodLower.includes('glad')) {
+      return '#4CAF50'; // Green
+    } else if (moodLower.includes('sad')) {
+      return '#2196F3'; // Blue
+    } else if (moodLower.includes('angry') || moodLower.includes('mad')) {
+      return '#F44336'; // Red
+    } else if (moodLower.includes('neutral') || moodLower === 'ok') {
+      return '#FFC107'; // Yellow/Amber
+    } else {
+      return '#9E9E9E'; // Grey for unknown moods
     }
   };
 
@@ -647,45 +1065,217 @@ const AdminPanel = () => {
 
 const DepartmentCharts = () => {
   const [departments, setDepartments] = useState([]);
-  const [selectedDepartment, setSelectedDepartment] = useState('');
+  const [states, setStates] = useState([]);
+  const [roles, setRoles] = useState([]);
+  const [selectedDepartment, setSelectedDepartment] = useState('All');
+  const [selectedState, setSelectedState] = useState('All');
+  const [selectedRole, setSelectedRole] = useState('All');
+  const [selectedMood, setSelectedMood] = useState('All');
   const [departmentMoodData, setDepartmentMoodData] = useState([]);
-  const [showEmployeeDetails, setShowEmployeeDetails] = useState(false);
+  const [stateMoodData, setStateMoodData] = useState([]);
+  const [roleMoodData, setRoleMoodData] = useState([]);
+  const [showEmployeeDetails, setShowEmployeeDetails] = useState(true);
   const [departmentEmployees, setDepartmentEmployees] = useState([]);
   const [employeeMoodDetails, setEmployeeMoodDetails] = useState([]);
   const [filteredEmployeeMoodDetails, setFilteredEmployeeMoodDetails] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [windowWidth, setWindowWidth] = useState(Dimensions.get('window').width);
+  const [startDate, setStartDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [sortConfig, setSortConfig] = useState({ key: 'timestamp', direction: 'desc' });
 
   useEffect(() => {
-    const fetchDepartments = async () => {
-      try {
-        // Get unique departments from employees
-        const empSnap = await getDocs(collection(db, 'employees'));
-        const depts = new Set();
-        empSnap.docs.forEach(doc => {
-          const dept = doc.data().department;
-          if (dept) depts.add(dept);
-        });
-        setDepartments(Array.from(depts));
-        if (depts.size > 0) {
-          setSelectedDepartment(Array.from(depts)[0]);
-        }
-      } catch (error) {
-        console.error('Error fetching departments:', error);
-      }
+    const updateDimensions = ({ window }) => {
+      setWindowWidth(window.width);
     };
 
-    fetchDepartments();
+    const dimensionListener = Dimensions.addEventListener('change', updateDimensions);
+    return () => dimensionListener.remove();
   }, []);
 
   useEffect(() => {
-    if (!selectedDepartment) return;
+    const fetchData = async () => {
+      try {
+        // Get all employees to extract unique departments, states, and roles
+        const empSnap = await getDocs(collection(db, 'employees'));
+        const empData = empSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        // Extract unique departments
+        const depts = new Set();
+        // Extract unique states
+        const stateSet = new Set();
+        // Extract unique roles
+        const roleSet = new Set();
+        
+        empData.forEach(emp => {
+          if (emp.department) depts.add(emp.department);
+          if (emp.state) stateSet.add(emp.state);
+          if (emp.role) roleSet.add(emp.role);
+        });
+        
+        setDepartments(Array.from(depts));
+        setStates(Array.from(stateSet));
+        setRoles(Array.from(roleSet));
+        
+        if (depts.size > 0) {
+          setSelectedDepartment(Array.from(depts)[0]);
+        }
+        if (stateSet.size > 0) {
+          setSelectedState(Array.from(stateSet)[0]);
+        }
+        if (roleSet.size > 0) {
+          setSelectedRole(Array.from(roleSet)[0]);
+        }
+      } catch (error) {
+        console.error('Error fetching initial data:', error);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  // Handle sorting
+  const requestSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  // Apply sorting to the feedback data
+  const getSortedFeedback = (data) => {
+    if (!sortConfig.key) return data;
+    
+    return [...data].sort((a, b) => {
+      if (a[sortConfig.key] < b[sortConfig.key]) {
+        return sortConfig.direction === 'asc' ? -1 : 1;
+      }
+      if (a[sortConfig.key] > b[sortConfig.key]) {
+        return sortConfig.direction === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
+  };
+
+  // Apply filters to feedback
+  const applyFilters = (data) => {
+    return data.filter(item => {
+      // Search query filter
+      const matchesSearch = !searchQuery || 
+        (item.name && item.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (item.empId && item.empId.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (item.elaboration && item.elaboration.toLowerCase().includes(searchQuery.toLowerCase()));
+      
+      // Mood filter
+      const matchesMood = selectedMood === 'All' || 
+        (item.mood && item.mood.toLowerCase().includes(selectedMood.toLowerCase()));
+      
+      // Date range filter
+      let matchesDate = true;
+      if (startDate) {
+        matchesDate = matchesDate && item.timestamp && item.timestamp >= new Date(startDate);
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setDate(end.getDate() + 1); // inclusive
+        matchesDate = matchesDate && item.timestamp && item.timestamp < end;
+      }
+      
+      return matchesSearch && matchesMood && matchesDate;
+    });
+  };
+
+  // Export feedback to CSV
+  const exportToCSV = async () => {
+    try {
+      if (filteredEmployeeMoodDetails.length === 0) {
+        Alert.alert('No Data', 'There is no data to export.');
+        return;
+      }
+
+      // Create CSV header
+      let csvContent = 'Employee Name,Employee ID,Department,Mood,Comments,Date,Time\n';
+
+      // Add data rows
+      filteredEmployeeMoodDetails.forEach(item => {
+        const row = [
+          `"${(item.name || 'Unknown').replace(/"/g, '""')}"`,
+          `"${(item.empId || 'N/A').replace(/"/g, '""')}"`,
+          `"${(item.department || 'N/A').replace(/"/g, '""')}"`,
+          `"${(item.mood || 'N/A').replace(/"/g, '""')}"`,
+          `"${(item.elaboration || 'No comments').replace(/"/g, '""')}"`,
+          `"${(item.date || '--/--/----').replace(/"/g, '""')}"`,
+          `"${(item.time || '--:--').replace(/"/g, '""')}"`
+        ].join(',');
+        csvContent += row + '\n';
+      });
+
+      // Generate filename with current date and time
+      const now = new Date();
+      const dateString = now.toISOString().split('T')[0];
+      const timeString = now.toTimeString().split(' ')[0].replace(/:/g, '-');
+      const fileName = `employee_feedback_${dateString}_${timeString}.csv`;
+
+      // Get the document directory
+      const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+
+      // Write the file
+      await FileSystem.writeAsStringAsync(fileUri, csvContent, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+
+      // Share the file
+      await Sharing.shareAsync(fileUri, {
+        mimeType: 'text/csv',
+        dialogTitle: 'Export Feedback Data',
+        UTI: 'public.comma-separated-values-text'
+      });
+
+    } catch (error) {
+      console.error('Error exporting CSV:', error);
+      Alert.alert('Error', 'Failed to export data. Please try again.');
+    }
+  };
+
+  useEffect(() => {
+    if (departments.length > 0 && selectedDepartment === '') {
+      setSelectedDepartment('All');
+    }
+    if (states.length > 0 && selectedState === '') {
+      setSelectedState('All');
+    }
+    if (roles.length > 0 && selectedRole === '') {
+      setSelectedRole('All');
+    }
+  }, [departments, states, roles]);
+
+  useEffect(() => {
+    if (departments.length === 0 || states.length === 0 || roles.length === 0) return;
 
     const fetchDepartmentData = async () => {
       setLoading(true);
       try {
-        // Get all employees in selected department
-        const q = query(collection(db, 'employees'), where('department', '==', selectedDepartment));
+        // Get all employees matching the selected filters
+        let q = query(collection(db, 'employees'));
+        
+        // If department is selected, add to query
+        if (selectedDepartment !== 'All') {
+          q = query(q, where('department', '==', selectedDepartment));
+        }
+        
+        // If state is selected, add to query
+        if (selectedState !== 'All') {
+          q = query(q, where('state', '==', selectedState));
+        }
+        
+        // If role is selected, add to query
+        if (selectedRole !== 'All') {
+          q = query(q, where('role', '==', selectedRole));
+        }
+
         const empSnap = await getDocs(q);
         const empData = empSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setDepartmentEmployees(empData);
@@ -693,21 +1283,51 @@ const DepartmentCharts = () => {
         // Get mood data for these employees from chatResponses
         const moodSnap = await getDocs(collection(db, 'chatResponses'));
         const moodCounts = {};
+        const stateMoodCounts = {};
+        const roleMoodCounts = {};
         const moodDetails = [];
 
         moodSnap.docs.forEach(doc => {
           const moodData = doc.data();
-          const matchingEmployee = empData.find(emp => emp.empId === moodData.empId);
+          const matchingEmployee = empData.find(emp => emp.empId === moodData.employeeId);
           
-          if (matchingEmployee) {
+          // Convert Firestore timestamp to JS Date
+          const moodTimestamp = moodData.timestamp?.toDate ? moodData.timestamp.toDate() : null;
+
+          // Date filter logic
+          let matchesDate = true;
+          if (startDate) {
+            matchesDate = matchesDate && moodTimestamp && moodTimestamp >= new Date(startDate);
+          }
+          if (endDate) {
+            const end = new Date(endDate);
+            end.setDate(end.getDate() + 1); // inclusive
+            matchesDate = matchesDate && moodTimestamp && moodTimestamp < end;
+          }
+
+          if (matchingEmployee && matchesDate) {
             const mood = moodData.mood || 'UNKNOWN';
+            
+            // Count for department chart
             moodCounts[mood] = (moodCounts[mood] || 0) + 1;
+            
+            // Count for state chart
+            const stateKey = `${matchingEmployee.state || 'Unknown'}`;
+            stateMoodCounts[stateKey] = stateMoodCounts[stateKey] || {};
+            stateMoodCounts[stateKey][mood] = (stateMoodCounts[stateKey][mood] || 0) + 1;
+            
+            // Count for role chart
+            const roleKey = `${matchingEmployee.role || 'Unknown'}`;
+            roleMoodCounts[roleKey] = roleMoodCounts[roleKey] || {};
+            roleMoodCounts[roleKey][mood] = (roleMoodCounts[roleKey][mood] || 0) + 1;
             
             moodDetails.push({
               id: doc.id,
               empId: moodData.empId,
               name: matchingEmployee.name,
-              department: selectedDepartment,
+              department: matchingEmployee.department,
+              state: matchingEmployee.state,
+              role: matchingEmployee.role,
               mood: mood,
               elaboration: moodData.elaboration || '',
               timestamp: moodData.timestamp?.toDate() || null,
@@ -720,8 +1340,23 @@ const DepartmentCharts = () => {
         // Sort mood details by timestamp (newest first)
         moodDetails.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
-        // Prepare chart data
-        const chartData = Object.keys(moodCounts).map(mood => ({
+        // Filter mood details by date range
+        const filteredMoodDetails = moodDetails.filter((item) => {
+          let matchesDate = true;
+          if (startDate) {
+            matchesDate = matchesDate && item.timestamp && item.timestamp >= new Date(startDate);
+          }
+          if (endDate) {
+            // Add 1 day to endDate to make it inclusive
+            const end = new Date(endDate);
+            end.setDate(end.getDate() + 1);
+            matchesDate = matchesDate && item.timestamp && item.timestamp < end;
+          }
+          return matchesDate;
+        });
+
+        // Prepare department chart data
+        const deptChartData = Object.keys(moodCounts).map(mood => ({
           name: mood,
           count: moodCounts[mood],
           color: getMoodColor(mood),
@@ -729,8 +1364,32 @@ const DepartmentCharts = () => {
           legendFontSize: 15,
         }));
 
-        setDepartmentMoodData(chartData);
-        setEmployeeMoodDetails(moodDetails);
+        // Prepare state chart data (for selected state)
+        const stateChartData = selectedState !== 'All' 
+          ? Object.keys(stateMoodCounts[selectedState] || {}).map(mood => ({
+              name: mood,
+              count: stateMoodCounts[selectedState][mood],
+              color: getMoodColor(mood),
+              legendFontColor: '#7F7F7F',
+              legendFontSize: 15,
+            }))
+          : [];
+
+        // Prepare role chart data (for selected role)
+        const roleChartData = selectedRole !== 'All'
+          ? Object.keys(roleMoodCounts[selectedRole] || {}).map(mood => ({
+              name: mood,
+              count: roleMoodCounts[selectedRole][mood],
+              color: getMoodColor(mood),
+              legendFontColor: '#7F7F7F',
+              legendFontSize: 15,
+            }))
+          : [];
+
+        setDepartmentMoodData(deptChartData);
+        setStateMoodData(stateChartData);
+        setRoleMoodData(roleChartData);
+        setEmployeeMoodDetails(filteredMoodDetails);
       } catch (error) {
         console.error('Error fetching department data:', error);
       } finally {
@@ -739,18 +1398,33 @@ const DepartmentCharts = () => {
     };
 
     fetchDepartmentData();
-  }, [selectedDepartment]);
+  }, [selectedDepartment, selectedState, selectedRole, startDate, endDate]);
 
   useEffect(() => {
     setFilteredEmployeeMoodDetails(
-      employeeMoodDetails.filter(
-        (item) =>
+      employeeMoodDetails.filter((item) => {
+        // Text search
+        const matchesText =
           (item.name && item.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
           (item.mood && item.mood.toLowerCase().includes(searchQuery.toLowerCase())) ||
-          (item.elaboration && item.elaboration.toLowerCase().includes(searchQuery.toLowerCase()))
-      )
+          (item.elaboration && item.elaboration.toLowerCase().includes(searchQuery.toLowerCase()));
+
+        // Date filter
+        let matchesDate = true;
+        if (startDate) {
+          matchesDate = matchesDate && item.timestamp && item.timestamp >= new Date(startDate);
+        }
+        if (endDate) {
+          // Add 1 day to endDate to make it inclusive
+          const end = new Date(endDate);
+          end.setDate(end.getDate() + 1);
+          matchesDate = matchesDate && item.timestamp && item.timestamp < end;
+        }
+
+        return matchesText && matchesDate;
+      })
     );
-  }, [searchQuery, employeeMoodDetails]);
+  }, [searchQuery, employeeMoodDetails, startDate, endDate]);
 
   const getMoodColor = (mood) => {
     switch(mood.toUpperCase()) {
@@ -763,31 +1437,467 @@ const DepartmentCharts = () => {
     }
   };
 
+  const chartWidth = Math.min(windowWidth - 40, 350);
+  const chartHeight = 220;
+
+  // Create refs for charts
+  const departmentChartRef = useRef();
+  const stateChartRef = useRef();
+  const roleChartRef = useRef();
+  
+  // Chart configuration
+  const chartConfig = {
+    backgroundColor: '#ffffff',
+    backgroundGradientFrom: '#ffffff',
+    backgroundGradientTo: '#ffffff',
+    decimalPlaces: 0,
+    color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-IN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+    } catch (e) {
+      return dateString;
+    }
+  };
+
+  const formatTime = (dateString) => {
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleTimeString('en-IN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      });
+    } catch (e) {
+      return '';
+    }
+  };
+
+  const captureChartAsImage = async (chartRef) => {
+    if (!chartRef?.current) {
+      console.warn('Chart ref is not available');
+      return null;
+    }
+    
+    try {
+      // Add a small delay to ensure the view is ready
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Get the view's layout first
+      return new Promise((resolve) => {
+        chartRef.current.measure(async (x, y, width, height, pageX, pageY) => {
+          try {
+            const result = await captureRef(chartRef, {
+              format: 'png',
+              quality: 1,
+              result: 'base64',
+              width: width || 600,
+              height: height || 400,
+            });
+            resolve(`data:image/png;base64,${result}`);
+          } catch (e) {
+            console.warn('Error capturing chart:', e);
+            resolve(null);
+          }
+        });
+      });
+    } catch (e) {
+      console.warn('Failed to capture chart:', e);
+      return null;
+    }
+  };
+
+  const exportToPDF = async () => {
+    try {
+      // Show loading indicator
+      Alert.alert('Exporting PDF', 'Preparing your report...');
+      
+      // Capture charts as images
+      let deptChartImage = null;
+      let stateChartImage = null;
+      let roleChartImage = null;
+      
+      try {
+        deptChartImage = await captureChartAsImage(departmentChartRef);
+        if (selectedState !== 'All') {
+          stateChartImage = await captureChartAsImage(stateChartRef);
+        }
+        if (selectedRole !== 'All') {
+          roleChartImage = await captureChartAsImage(roleChartRef);
+        }
+      } catch (error) {
+        console.warn('Error capturing charts:', error);
+        // Continue with PDF generation even if chart capture fails
+      }
+
+      // Create HTML content for PDF
+      let htmlContent = `
+        <html>
+          <head>
+            <meta charset="UTF-8">
+            <style>
+              body { 
+                font-family: Arial, sans-serif; 
+                padding: 20px;
+                direction: ltr;
+              }
+              h1 { 
+                color: #2c3e50; 
+                text-align: center; 
+                margin-bottom: 10px;
+              }
+              h2 { 
+                color: #34495e; 
+                margin-top: 25px; 
+                border-bottom: 1px solid #eee; 
+                padding-bottom: 5px; 
+                font-size: 16px;
+              }
+              .chart-container { 
+                margin: 20px 0; 
+                text-align: center; 
+                page-break-inside: avoid;
+              }
+              .chart-image {
+                max-width: 100%;
+                height: auto;
+                margin: 10px 0;
+                border: 1px solid #eee;
+              }
+              .chart-title { 
+                font-weight: bold; 
+                margin-bottom: 10px; 
+                font-size: 14px;
+              }
+              .date-range { 
+                margin: 10px 0; 
+                text-align: center;
+                font-style: italic; 
+                color: #7f8c8d;
+                font-size: 12px;
+              }
+              .mood-list {
+                text-align: left; 
+                margin: 10px 0 0 0;
+                padding-left: 20px;
+                list-style-type: none;
+              }
+              .mood-item {
+                margin: 5px 0;
+                font-size: 13px;
+              }
+              .report-header {
+                text-align: center;
+                margin-bottom: 20px;
+                border-bottom: 1px solid #eee;
+                padding-bottom: 15px;
+              }
+              .report-title {
+                font-size: 22px;
+                font-weight: bold;
+                margin-bottom: 5px;
+                color: #2c3e50;
+              }
+              .report-subtitle {
+                font-size: 14px;
+                color: #666;
+              }
+              .summary-box {
+                background: #f8f9fa;
+                border-left: 4px solid #E31937;
+                padding: 10px 15px;
+                margin: 15px 0;
+                border-radius: 0 4px 4px 0;
+              }
+              .summary-title {
+                font-weight: bold;
+                margin-bottom: 5px;
+                color: #2c3e50;
+              }
+              .chart-placeholder {
+                background: #f8f9fa;
+                border: 1px dashed #ddd;
+                padding: 20px;
+                text-align: center;
+                color: #7f8c8d;
+                margin: 10px 0;
+                border-radius: 4px;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="report-header">
+              <div class="report-title">Employee Mood Analytics Report</div>
+              <div class="report-subtitle">Generated on: ${new Date().toLocaleString('en-IN')}</div>
+              <div class="date-range">
+                ${startDate ? `From: ${formatDate(startDate)}` : ''}
+                ${endDate ? ` To: ${formatDate(endDate)}` : ''}
+                ${!startDate && !endDate ? 'All Time Data' : ''}
+              </div>
+            </div>
+      `;
+
+      // Add department chart
+      if (departmentMoodData.length > 0) {
+        const totalResponses = departmentMoodData.reduce((sum, item) => sum + item.count, 0);
+        htmlContent += `
+          <h2>${selectedDepartment === 'All' ? 'All Departments' : selectedDepartment} Mood Distribution</h2>
+          <div class="chart-container">
+            ${deptChartImage ? `<img src="${deptChartImage}" class="chart-image" alt="Department Mood Chart" />` : 
+              '<div class="chart-placeholder">[Chart not available in this view]</div>'}
+            <div class="summary-box">
+              <div class="summary-title">Summary (Total Responses: ${totalResponses})</div>
+              <ul class="mood-list">
+                ${departmentMoodData.map(item => {
+                  const percentage = totalResponses > 0 ? Math.round((item.count / totalResponses) * 100) : 0;
+                  return `
+                    <li class="mood-item" style="color: ${item.color};">
+                      <strong>${item.name}:</strong> ${item.count} responses (${percentage}%)
+                    </li>`;
+                }).join('')}
+              </ul>
+            </div>
+          </div>
+        `;
+      }
+
+      // Add state chart if available
+      if (stateMoodData.length > 0 && selectedState !== 'All') {
+        const totalResponses = stateMoodData.reduce((sum, item) => sum + item.count, 0);
+        htmlContent += `
+          <h2>${selectedState} Mood Distribution</h2>
+          <div class="chart-container">
+            ${stateChartImage ? `<img src="${stateChartImage}" class="chart-image" alt="State Mood Chart" />` : 
+              '<div class="chart-placeholder">[Chart not available in this view]</div>'}
+            <div class="summary-box">
+              <div class="summary-title">Summary (Total Responses: ${totalResponses})</div>
+              <ul class="mood-list">
+                ${stateMoodData.map(item => {
+                  const percentage = totalResponses > 0 ? Math.round((item.count / totalResponses) * 100) : 0;
+                  return `
+                    <li class="mood-item" style="color: ${item.color};">
+                      <strong>${item.name}:</strong> ${item.count} responses (${percentage}%)
+                    </li>`;
+                }).join('')}
+              </ul>
+            </div>
+          </div>
+        `;
+      }
+
+      // Add role chart if available
+      if (roleMoodData.length > 0 && selectedRole !== 'All') {
+        const totalResponses = roleMoodData.reduce((sum, item) => sum + item.count, 0);
+        htmlContent += `
+          <h2>${selectedRole} Mood Distribution</h2>
+          <div class="chart-container">
+            ${roleChartImage ? `<img src="${roleChartImage}" class="chart-image" alt="Role Mood Chart" />` : 
+              '<div class="chart-placeholder">[Chart not available in this view]</div>'}
+            <div class="summary-box">
+              <div class="summary-title">Summary (Total Responses: ${totalResponses})</div>
+              <ul class="mood-list">
+                ${roleMoodData.map(item => {
+                  const percentage = totalResponses > 0 ? Math.round((item.count / totalResponses) * 100) : 0;
+                  return `
+                    <li class="mood-item" style="color: ${item.color};">
+                      <strong>${item.name}:</strong> ${item.count} responses (${percentage}%)
+                    </li>`;
+                }).join('')}
+              </ul>
+            </div>
+          </div>
+        `;
+      }
+
+      htmlContent += `
+          </body>
+        </html>
+      `;
+
+      // Generate PDF
+      const result = await Print.printToFileAsync({
+        html: htmlContent,
+        width: 612, // 8.5in in points (72 dpi)
+        height: 792, // 11in in points (72 dpi)
+        base64: false
+      });
+
+      if (result && result.uri) {
+        // Share the PDF
+        await Sharing.shareAsync(result.uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: 'Export Analytics Report',
+          UTI: 'com.adobe.pdf'
+        });
+      } else {
+        throw new Error('Failed to generate PDF: No URI returned');
+      }
+    } catch (e) {
+      console.error('Failed to export PDF:', e);
+      Alert.alert('Export Failed', `Failed to export PDF: ${e.message}`);
+    }
+  };
+
+  const exportTableToCSV = async () => {
+    try {
+      if (filteredEmployeeMoodDetails.length === 0) {
+        alert('No data to export');
+        return;
+      }
+
+      // Generate CSV content
+      const headers = ['Date', 'Time', 'Employee ID', 'Name', 'Department', 'State', 'Role', 'Mood', 'Comments'];
+      let csvContent = headers.join(',') + '\n';
+      
+      filteredEmployeeMoodDetails.forEach(item => {
+        // Format date and time properly
+        const formattedDate = formatDate(item.timestamp || item.date);
+        const formattedTime = formatTime(item.timestamp) || item.time || '';
+        
+        const row = [
+          `"${formattedDate}"`,
+          `"${formattedTime}"`,
+          `"${item.empId || ''}"`,
+          `"${(item.name || '').replace(/"/g, '""')}"`,
+          `"${(item.department || '').replace(/"/g, '""')}"`,
+          `"${(item.state || '').replace(/"/g, '""')}"`,
+          `"${(item.role || '').replace(/"/g, '""')}"`,
+          `"${(item.mood || '').replace(/"/g, '""')}"`,
+          `"${(item.elaboration || '').replace(/\r?\n|\r/g, ' ').replace(/"/g, '""')}"`
+        ];
+        csvContent += row.join(',') + '\r\n';
+      });
+
+      if (Platform.OS === 'web') {
+        // For web platform
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', `employee_mood_data_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        // For mobile platforms
+        const fileUri = FileSystem.documentDirectory + `employee_mood_data_${new Date().toISOString().split('T')[0]}.csv`;
+        
+        // Write the file
+        FileSystem.writeAsStringAsync(fileUri, csvContent, {
+          encoding: FileSystem.EncodingType.UTF8,
+        }).then(() => {
+          // Share the file
+          Sharing.shareAsync(fileUri, {
+            mimeType: 'text/csv',
+            dialogTitle: 'Export Mood Data',
+            UTI: 'public.comma-separated-values-text'
+          });
+        });
+      }
+    } catch (e) {
+      alert('Failed to export data: ' + e.message);
+    }
+  };
+
   return (
     <View style={styles.content}>
-      <Text style={styles.heading}>Department Analytics</Text>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <Text style={styles.heading}>Employee Analytics</Text>
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <TouchableOpacity 
+            style={[styles.addButton, { backgroundColor: '#2c3e50', padding: 8, margin: 0 }]}
+            onPress={exportToPDF}
+          >
+            <Text style={styles.addButtonText}>Export Charts (PDF)</Text>
+          </TouchableOpacity>
+          {showEmployeeDetails && (
+            <TouchableOpacity 
+              style={[styles.addButton, { backgroundColor: '#27ae60', padding: 8, margin: 0 }]}
+              onPress={exportTableToCSV}
+            >
+              <Text style={styles.addButtonText}>Export Table (CSV)</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
       
-      <View style={styles.chartControls}>
-        <View style={{ flex: 1 }}>
-          <Text style={{ marginBottom: 5 }}>Select Department:</Text>
-         <Picker
-  selectedValue={selectedDepartment}
-  style={styles.departmentPicker}
-  onValueChange={(itemValue) => setSelectedDepartment(itemValue)}
->
-  {departments.map((dept, index) => (
-    <Picker.Item key={index} label={dept} value={dept} />
-  ))}
-</Picker>
+      {/* Filter Controls */}
+      <View style={styles.chartControls} className="chartControls">
+        <View style={{ flex: 1, marginRight: 10 }}>
+          <Text style={{ marginBottom: 5 }}>Department:</Text>
+          <Picker
+            selectedValue={selectedDepartment}
+            style={styles.departmentPicker}
+            onValueChange={(itemValue) => setSelectedDepartment(itemValue)}
+          >
+            <Picker.Item label="All Departments" value="All" />
+            {departments.map((dept, index) => (
+              <Picker.Item key={`dept-${index}`} label={dept} value={dept} />
+            ))}
+          </Picker>
         </View>
         
-        <TouchableOpacity 
+        <View style={{ flex: 1, marginRight: 10 }}>
+          <Text style={{ marginBottom: 5 }}>State:</Text>
+          <Picker
+            selectedValue={selectedState}
+            style={styles.departmentPicker}
+            onValueChange={(itemValue) => setSelectedState(itemValue)}
+          >
+            <Picker.Item label="All States" value="All" />
+            {states.map((state, index) => (
+              <Picker.Item key={`state-${index}`} label={state} value={state} />
+            ))}
+          </Picker>
+        </View>
+        
+        <View style={{ flex: 1 }}>
+          <Text style={{ marginBottom: 5 }}>Role:</Text>
+          <Picker
+            selectedValue={selectedRole}
+            style={styles.departmentPicker}
+            onValueChange={(itemValue) => setSelectedRole(itemValue)}
+          >
+            <Picker.Item label="All Roles" value="All" />
+            {roles.map((role, index) => (
+              <Picker.Item key={`role-${index}`} label={role} value={role} />
+            ))}
+          </Picker>
+        </View>
+      </View>
+
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }} className="searchBar">
+        <Text>Start Date: </Text>
+        <TextInput
+          style={[styles.input, { width: 120, marginRight: 10 }]}
+          placeholder="YYYY-MM-DD"
+          value={startDate || ''}
+          onChangeText={setStartDate}
+        />
+        <Text>End Date: </Text>
+        <TextInput
+          style={[styles.input, { width: 120, marginRight: 10 }]}
+          placeholder="YYYY-MM-DD"
+          value={endDate || ''}
+          onChangeText={setEndDate}
+        />
+        <TouchableOpacity
           style={styles.detailButton}
-          onPress={() => setShowEmployeeDetails(!showEmployeeDetails)}
+          onPress={() => {
+            // This will trigger the filter (see next step)
+            setShowEmployeeDetails(true);
+          }}
         >
-          <Text style={styles.detailButtonText}>
-            {showEmployeeDetails ? 'Hide Details' : 'Show Mood Details'}
-          </Text>
+          <Text style={styles.detailButtonText}>Filter by Date</Text>
         </TouchableOpacity>
       </View>
 
@@ -795,34 +1905,103 @@ const DepartmentCharts = () => {
         <ActivityIndicator size="large" />
       ) : (
         <>
-          {departmentMoodData.length > 0 ? (
-            <View style={styles.chartContainer}>
+          {/* Charts Row */}
+          <View style={{ flexDirection: windowWidth > 768 ? 'row' : 'column', justifyContent: 'space-between' }}>
+            {/* Department Chart */}
+            <View ref={departmentChartRef} collapsable={false} style={styles.chartContainer}>
               <Text style={styles.sectionTitle}>
-                Mood Distribution in {selectedDepartment}
+                {selectedDepartment === 'All' ? 'All Departments' : selectedDepartment}
               </Text>
-              <PieChart
-                data={departmentMoodData}
-                width={Math.min(Dimensions.get('window').width - 40, 350)}
-                height={220}
-                chartConfig={{
-                  backgroundColor: '#ffffff',
-                  backgroundGradientFrom: '#ffffff',
-                  backgroundGradientTo: '#ffffff',
-                  decimalPlaces: 0,
-                  color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-                }}
-                accessor="count"
-                backgroundColor="transparent"
-                paddingLeft="15"
-                absolute
-                hasLegend
-              />
+              {departmentMoodData.length > 0 ? (
+                <PieChart
+                  data={departmentMoodData}
+                  width={chartWidth}
+                  height={chartHeight}
+                  chartConfig={{
+                    ...chartConfig,
+                    style: {
+                      borderRadius: 16
+                    }
+                  }}
+                  accessor="count"
+                  backgroundColor="transparent"
+                  paddingLeft="15"
+                  absolute
+                  style={styles.chart}
+                />
+              ) : (
+                <Text style={{ textAlign: 'center', paddingVertical: 20 }}>
+                  No mood data available
+                </Text>
+              )}
             </View>
-          ) : (
-            <Text style={{ textAlign: 'center', marginVertical: 20 }}>
-              No mood data available for {selectedDepartment} department
-            </Text>
-          )}
+
+            {/* State Chart */}
+            {selectedState !== 'All' && (
+              <View style={[styles.chartContainer, { flex: 1, marginLeft: windowWidth > 768 ? 10 : 0 }]}>
+                <Text style={styles.sectionTitle}>
+                  {selectedState} Mood Distribution
+                </Text>
+                {stateMoodData.length > 0 ? (
+                  <View ref={stateChartRef} collapsable={false}>
+                    <PieChart
+                      data={stateMoodData}
+                      width={chartWidth}
+                      height={chartHeight}
+                      chartConfig={{
+                        ...chartConfig,
+                        style: {
+                          borderRadius: 16
+                        }
+                      }}
+                      accessor="count"
+                      backgroundColor="transparent"
+                      paddingLeft="15"
+                      absolute
+                      style={styles.chart}
+                    />
+                  </View>
+                ) : (
+                  <Text style={{ textAlign: 'center', paddingVertical: 20 }}>
+                    No mood data available for {selectedState}
+                  </Text>
+                )}
+              </View>
+            )}
+
+            {/* Role Chart */}
+            {selectedRole !== 'All' && (
+              <View style={[styles.chartContainer, { flex: 1, marginLeft: windowWidth > 768 ? 10 : 0, marginTop: windowWidth > 768 ? 0 : 15 }]}>
+                <Text style={styles.sectionTitle}>
+                  {selectedRole} Mood Distribution
+                </Text>
+                {roleMoodData.length > 0 ? (
+                  <View ref={roleChartRef} collapsable={false}>
+                    <PieChart
+                      data={roleMoodData}
+                      width={chartWidth}
+                      height={chartHeight}
+                      chartConfig={{
+                        ...chartConfig,
+                        style: {
+                          borderRadius: 16
+                        }
+                      }}
+                      accessor="count"
+                      backgroundColor="transparent"
+                      paddingLeft="15"
+                      absolute
+                      style={styles.chart}
+                    />
+                  </View>
+                ) : (
+                  <Text style={{ textAlign: 'center', paddingVertical: 20 }}>
+                    No mood data available for {selectedRole}
+                  </Text>
+                )}
+              </View>
+            )}
+          </View>
 
           {showEmployeeDetails && (
             <>
@@ -832,47 +2011,140 @@ const DepartmentCharts = () => {
                 value={searchQuery}
                 onChangeText={setSearchQuery}
               />
-              <View style={styles.employeeMoodTable}>
-              <ScrollView horizontal>
-                <View>
-                  <View style={styles.moodTableHeader}>
-                    <Text style={[styles.moodHeaderCell, styles.moodNameCell]}>Employee</Text>
-                    <Text style={[styles.moodHeaderCell, styles.moodDepartmentCell]}>Department</Text>
-                    <Text style={[styles.moodHeaderCell, styles.moodMoodCell]}>Mood</Text>
-                    <Text style={[styles.moodHeaderCell, styles.moodElaborationCell]}>Comments</Text>
-                    <Text style={[styles.moodHeaderCell, styles.moodDateCell]}>Date</Text>
-                    <Text style={[styles.moodHeaderCell, styles.moodDateCell]}>Time</Text>
+              <View style={styles.feedbackContainer}>
+                <View style={styles.feedbackHeader}>
+                  <View>
+                    <Text style={styles.feedbackTitle}>Employee Feedback</Text>
+                    <Text style={styles.resultCount}>
+                      {filteredEmployeeMoodDetails.length} records found
+                    </Text>
                   </View>
-                  
-                  {filteredEmployeeMoodDetails.length > 0 ? (
-                    <FlatList
-                      data={filteredEmployeeMoodDetails}
-                      keyExtractor={(item) => item.id}
-                      renderItem={({ item }) => (
-                        <View style={styles.moodRow}>
-                          <Text style={[styles.moodTableCell, styles.moodNameCell]}>{item.name}</Text>
-                          <Text style={[styles.moodTableCell, styles.moodDepartmentCell]}>{item.department}</Text>
-                          <Text style={[
-                            styles.moodTableCell, 
-                            styles.moodMoodCell,
-                            { color: getMoodColor(item.mood) }
-                          ]}>
-                            {item.mood}
-                          </Text>
-                          <Text style={[styles.moodTableCell, styles.moodElaborationCell]}>{item.elaboration}</Text>
-                          <Text style={[styles.moodTableCell, styles.moodDateCell]}>{item.date}</Text>
-                          <Text style={[styles.moodTableCell, styles.moodDateCell]}>{item.time}</Text>
-                        </View>
-                      )}
-                    />
-                  ) : (
-                    <View style={{ padding: 20 }}>
-                      <Text style={{ textAlign: 'center' }}>No mood responses found for this department</Text>
-                    </View>
-                  )}
+                  <TouchableOpacity 
+                    style={styles.exportButton}
+                    onPress={exportToCSV}
+                    disabled={filteredEmployeeMoodDetails.length === 0}
+                  >
+                    <MaterialIcons name="file-download" size={20} color="#fff" />
+                    <Text style={styles.exportButtonText}>Export to CSV</Text>
+                  </TouchableOpacity>
                 </View>
-              </ScrollView>
-            </View>
+                
+                <ScrollView horizontal showsHorizontalScrollIndicator={true}>
+                  <View>
+                    {/* Table Header */}
+                    <View style={styles.tableHeader}>
+                      <View style={[styles.headerCell, { width: 120 }]}>
+                        <Text style={styles.headerCellText}>Employee</Text>
+                      </View>
+                      <View style={[styles.headerCell, { width: 120 }]}>
+                        <Text style={styles.headerCellText}>Department</Text>
+                      </View>
+                      <View style={[styles.headerCell, { width: 100 }]}>
+                        <Text style={styles.headerCellText}>Mood</Text>
+                      </View>
+                      <View style={[styles.headerCell, { width: 200 }]}>
+                        <Text style={styles.headerCellText}>Comments</Text>
+                      </View>
+                      <View style={[styles.headerCell, { width: 100 }]}>
+                        <Text style={styles.headerCellText}>Time</Text>
+                      </View>
+                      <View style={[styles.headerCell, { width: 100 }]}>
+                        <Text style={styles.headerCellText}>Date</Text>
+                      </View>
+                    </View>
+                    
+                    {/* Table Body */}
+                    {loading ? (
+                      <View style={styles.loadingContainer}>
+                        <ActivityIndicator size="large" color="#E31937" />
+                        <Text style={styles.loadingText}>Loading feedback data...</Text>
+                      </View>
+                    ) : filteredEmployeeMoodDetails.length > 0 ? (
+                      filteredEmployeeMoodDetails.map((item, index) => (
+                        <View 
+                          key={`${item.id}-${index}`} 
+                          style={[
+                            styles.tableRow,
+                            index % 2 === 0 ? styles.evenRow : styles.oddRow,
+                            { height: 'auto' }
+                          ]}
+                        >
+                          {/* Employee Name */}
+                          <View style={[styles.cell, { width: 120 }]}>
+                            <Text style={[styles.cellText, { fontWeight: '500' }]} numberOfLines={1}>
+                              {item.name || 'Unknown'}
+                            </Text>
+                            <Text style={[styles.cellText, { fontSize: 11, color: '#666' }]} numberOfLines={1}>
+                              ID: {item.empId || 'N/A'}
+                            </Text>
+                          </View>
+                          
+                          {/* Department */}
+                          <View style={[styles.cell, { width: 120 }]}>
+                            <Text style={styles.cellText} numberOfLines={1}>
+                              {item.department || 'N/A'}
+                            </Text>
+                          </View>
+                          
+                          {/* Mood */}
+                          <View style={[styles.cell, { width: 100, alignItems: 'center' }]}>
+                            <View 
+                              style={[
+                                styles.moodBadge,
+                                { backgroundColor: `${getMoodColor(item.mood)}20` }
+                              ]}
+                            >
+                              <Text 
+                                style={[
+                                  styles.moodText,
+                                  { color: getMoodColor(item.mood) }
+                                ]}
+                                numberOfLines={1}
+                              >
+                                {item.mood || 'N/A'}
+                              </Text>
+                            </View>
+                          </View>
+                          
+                          {/* Comments */}
+                          <View style={[styles.cell, { width: 200, padding: 8 }]}>
+                            <Text 
+                              style={[
+                                styles.feedbackText,
+                                !item.elaboration && { fontStyle: 'italic', color: '#888' }
+                              ]}
+                              numberOfLines={3}
+                              ellipsizeMode="tail"
+                            >
+                              {item.elaboration || 'No comments'}
+                            </Text>
+                          </View>
+                          
+                          {/* Time */}
+                          <View style={[styles.cell, { width: 100, justifyContent: 'center' }]}>
+                            <Text style={styles.cellText}>
+                              {item.time || '--:--'}
+                            </Text>
+                          </View>
+                          
+                          {/* Date */}
+                          <View style={[styles.cell, { width: 100, justifyContent: 'center' }]}>
+                            <Text style={styles.cellText}>
+                              {item.date || '--/--/----'}
+                            </Text>
+                          </View>
+                        </View>
+                      ))
+                    ) : (
+                      <View style={styles.noDataContainer}>
+                        <MaterialIcons name="feedback" size={48} color="#ddd" />
+                        <Text style={styles.noDataText}>No feedback data found</Text>
+                        <Text style={styles.noDataSubtext}>Try adjusting your filters or check back later</Text>
+                      </View>
+                    )}
+                  </View>
+                </ScrollView>
+              </View>
             </>
           )}
         </>
@@ -984,15 +2256,67 @@ const AdminList = () => {
   };
 
   if (loading) return <ActivityIndicator size="large" />;
+  const exportToCSV = async () => {
+    try {
+      // Generate CSV content
+      const headers = ['Username', 'Email', 'Password'];
+      let csvContent = headers.join(',') + '\n';
+      
+      admins.forEach(admin => {
+        const row = [
+          `"${admin.username || ''}"`,
+          `"${admin.email || ''}"`,
+          `"${admin.password || ''}"`
+        ];
+        csvContent += row.join(',') + '\n';
+      });
+
+      if (Platform.OS === 'web') {
+        // For web platform
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', 'admin_report.csv');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        // For mobile platforms
+        const fileUri = FileSystem.documentDirectory + 'admin_report.csv';
+        
+        // Write the file
+        await FileSystem.writeAsStringAsync(fileUri, csvContent, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+
+        // Share the file
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'text/csv',
+          dialogTitle: 'Export Admin Data',
+          UTI: 'public.comma-separated-values-text'
+        });
+      }
+    } catch (e) {
+      alert('Failed to export data: ' + e.message);
+    }
+  };
+
   return (
     <View style={styles.adminProfileContainer}>
-      {/* Add Admin Button */}
-      <View style={styles.adminHeader}>
+      {/* Add Admin and Export Buttons */}
+      <View style={[styles.adminHeader, {justifyContent: 'space-between'}]}>
         <TouchableOpacity 
           style={styles.addButton}
           onPress={() => setAddModalVisible(true)}
         >
           <Text style={styles.addButtonText}>Add Admin Profile</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.addButton, {backgroundColor: '#4CAF50'}]}
+          onPress={exportToCSV}
+        >
+          <Text style={styles.addButtonText}>Export to CSV</Text>
         </TouchableOpacity>
       </View>
 
@@ -1137,6 +2461,54 @@ const AdminList = () => {
 };
 
 const EmployeeList = () => {
+  const exportToCSV = async () => {
+    try {
+      // Generate CSV content
+      const headers = ['Employee ID', 'Name', 'Department', 'Role', 'Email', 'State'];
+      let csvContent = headers.join(',') + '\n';
+      
+      employees.forEach(emp => {
+        const row = [
+          `"${emp.empId || ''}"`,
+          `"${emp.name || ''}"`,
+          `"${emp.department || ''}"`,
+          `"${emp.role || ''}"`,
+          `"${emp.email || ''}"`,
+          `"${emp.state || ''}"`
+        ];
+        csvContent += row.join(',') + '\n';
+      });
+
+      if (Platform.OS === 'web') {
+        // For web platform
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', 'employee_report.csv');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        // For mobile platforms
+        const fileUri = FileSystem.documentDirectory + 'employee_report.csv';
+        
+        // Write the file
+        await FileSystem.writeAsStringAsync(fileUri, csvContent, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+
+        // Share the file
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'text/csv',
+          dialogTitle: 'Export Employee Data',
+          UTI: 'public.comma-separated-values-text'
+        });
+      }
+    } catch (e) {
+      alert('Failed to export data: ' + e.message);
+    }
+  };
   const [employees, setEmployees] = useState([]);
   const [filteredEmployees, setFilteredEmployees] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -1148,7 +2520,9 @@ const EmployeeList = () => {
     empId: '',
     name: '',
     department: '',
-    role: ''
+    role: '',
+    state: '',
+    email: '' // Remove password
   });
 
   const fetchEmployees = async () => {
@@ -1196,8 +2570,13 @@ const EmployeeList = () => {
 
   const handleEditSave = async () => {
     try {
-      const { id, empId, name, department, role } = editData;
-      await updateDoc(doc(db, 'employees', id), { empId, name, department, role });
+      const { id, empId, name, department, role } = editData; // Remove password
+      await updateDoc(doc(db, 'employees', id), { 
+        empId, 
+        name, 
+        department, 
+        role
+      });
       setEditModalVisible(false);
       fetchEmployees();
       alert('Employee updated successfully');
@@ -1208,24 +2587,47 @@ const EmployeeList = () => {
 
   const handleAddEmployee = async () => {
     try {
-      const { empId } = newEmployee;
-
-      // Check if employee with the same empId already exists
+      const { empId, email } = newEmployee;
+      
+      // Check if employee with the same ID already exists
       const empIdQuery = query(collection(db, 'employees'), where('empId', '==', empId));
       const empIdSnapshot = await getDocs(empIdQuery);
-
       if (!empIdSnapshot.empty) {
         alert('Employee with this ID already exists.');
         return;
       }
-
-      await addDoc(collection(db, 'employees'), newEmployee);
+      
+      // Check if employee with the same email already exists
+      if (email) {
+        const emailQuery = query(collection(db, 'employees'), where('email', '==', email.toLowerCase()));
+        const emailSnapshot = await getDocs(emailQuery);
+        if (!emailSnapshot.empty) {
+          alert('Employee with this email already exists.');
+          return;
+        }
+      }
+      
+      // Add the employee to the database
+      await setDoc(doc(db, 'employees', newEmployee.empId), {
+        ...newEmployee,
+        email: email.toLowerCase() // Store email in lowercase for consistency
+      });
+      
+      // Reset form and refresh the list
       setAddModalVisible(false);
-      setNewEmployee({ empId: '', name: '', department: '', role: '' });
+      setNewEmployee({ 
+        empId: '', 
+        name: '', 
+        department: '', 
+        role: '',
+        state: '',
+        email: ''
+      });
+      
       fetchEmployees();
       alert('Employee added successfully');
     } catch (e) {
-      alert('Failed to add employee');
+      alert('Failed to add employee. Please try again.');
     }
   };
 
@@ -1233,13 +2635,19 @@ const EmployeeList = () => {
 
   return (
     <View style={styles.adminProfileContainer}>
-      {/* Add Employee Button */}
-      <View style={styles.adminHeader}>
+      {/* Add Employee and Export Buttons */}
+      <View style={[styles.adminHeader, {justifyContent: 'space-between'}]}>
         <TouchableOpacity 
           style={styles.addButton}
           onPress={() => setAddModalVisible(true)}
         >
           <Text style={styles.addButtonText}>Add Employee</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.addButton, {backgroundColor: '#4CAF50'}]}
+          onPress={exportToCSV}
+        >
+          <Text style={styles.addButtonText}>Export to CSV</Text>
         </TouchableOpacity>
       </View>
 
@@ -1259,13 +2667,15 @@ const EmployeeList = () => {
         {/* Employee Table */}
         <View style={styles.adminTable}>
           {/* Table Header */}
-          <View style={styles.tableHeader}>
-            <Text style={[styles.tableHeaderCell, styles.idCell]}>ID</Text>
-            <Text style={[styles.tableHeaderCell, styles.nameCell]}>Name</Text>
-            <Text style={[styles.tableHeaderCell, styles.deptCell]}>Department</Text>
-            <Text style={[styles.tableHeaderCell, styles.roleCell]}>Role</Text>
-            <Text style={[styles.tableHeaderCell, styles.actionCell]}>EDIT</Text>
-            <Text style={[styles.tableHeaderCell, styles.actionCell]}>DELETE</Text>
+          <View style={[styles.tableHeader, {minWidth: 1000}]}>
+            <Text style={[styles.tableHeaderCell, {width: 80}]}>ID</Text>
+            <Text style={[styles.tableHeaderCell, {width: 150}]}>Name</Text>
+            <Text style={[styles.tableHeaderCell, {width: 120}]}>Department</Text>
+            <Text style={[styles.tableHeaderCell, {width: 150}]}>Role</Text>
+            <Text style={[styles.tableHeaderCell, {width: 200}]}>Email</Text>
+            <Text style={[styles.tableHeaderCell, {width: 120}]}>State</Text>
+            <Text style={[styles.tableHeaderCell, {width: 80}]}>EDIT</Text>
+            <Text style={[styles.tableHeaderCell, {width: 100}]}>DELETE</Text>
           </View>
 
           {/* Table Rows */}
@@ -1278,25 +2688,27 @@ const EmployeeList = () => {
               data={filteredEmployees}
               keyExtractor={item => item.id}
               renderItem={({ item }) => (
-                <View style={styles.tableRow}>
-                  <Text style={[styles.tableCell, styles.idCell]}>{item.empId || item.id}</Text>
-                  <Text style={[styles.tableCell, styles.nameCell]}>{item.name}</Text>
-                  <Text style={[styles.tableCell, styles.deptCell]}>{item.department}</Text>
-                  <Text style={[styles.tableCell, styles.roleCell]}>{item.role}</Text>
-                  <View style={[styles.tableCell, styles.actionCell]}>
+                <View style={[styles.tableRow, {minWidth: 1000}]}>
+                  <Text style={[styles.tableCell, {width: 80}]}>{item.empId || item.id}</Text>
+                  <Text style={[styles.tableCell, {width: 150}]}>{item.name}</Text>
+                  <Text style={[styles.tableCell, {width: 120}]}>{item.department}</Text>
+                  <Text style={[styles.tableCell, {width: 150}]}>{item.role}</Text>
+                  <Text style={[styles.tableCell, {width: 200}]} numberOfLines={1} ellipsizeMode="tail">{item.email || 'N/A'}</Text>
+                  <Text style={[styles.tableCell, {width: 120}]}>{item.state || 'N/A'}</Text>
+                  <View style={[styles.tableCell, {width: 80, paddingVertical: 5}]}>
                     <TouchableOpacity 
-                      style={[styles.actionButton, styles.editButton]}
+                      style={[styles.actionButton, styles.editButton, {padding: 5}]}
                       onPress={() => handleEdit(item)}
                     >
-                      <Text style={styles.actionButtonText}>EDIT</Text>
+                      <Text style={[styles.actionButtonText, {fontSize: 12}]}>EDIT</Text>
                     </TouchableOpacity>
                   </View>
-                  <View style={[styles.tableCell, styles.actionCell]}>
+                  <View style={[styles.tableCell, {width: 100, paddingVertical: 5}]}>
                     <TouchableOpacity 
-                      style={[styles.actionButton, styles.deleteButton]}
+                      style={[styles.actionButton, styles.deleteButton, {padding: 5}]}
                       onPress={() => handleDelete(item.id)}
                     >
-                      <Text style={styles.actionButtonText}>DELETE</Text>
+                      <Text style={[styles.actionButtonText, {fontSize: 12}]}>DELETE</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -1306,90 +2718,103 @@ const EmployeeList = () => {
         </View>
       </ScrollView>
 
-      {/* Edit and Add Modals (same as before) */}
-      {/* ... */}
+      {/* Edit Employee Modal */}
       <Modal
-              visible={editModalVisible}
-              animationType="slide"
-              transparent={true}
-              onRequestClose={() => setEditModalVisible(false)}
-            >
-              <View style={styles.modalContainer}>
-                <View style={styles.modalContent}>
-                  <Text style={styles.modalTitle}>Edit Employee</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={editData?.empId}
-                    onChangeText={txt => setEditData({ ...editData, empId: txt })}
-                    placeholder="Employee ID"
-                  />
-                  <TextInput
-                    style={styles.input}
-                    value={editData?.name}
-                    onChangeText={txt => setEditData({ ...editData, name: txt })}
-                    placeholder="Name"
-                  />
-                  <TextInput
-                    style={styles.input}
-                    value={editData?.department}
-                    onChangeText={txt => setEditData({ ...editData, department: txt })}
-                    placeholder="Department"
-                  />
-                  <TextInput
-                    style={styles.input}
-                    value={editData?.role}
-                    onChangeText={txt => setEditData({ ...editData, role: txt })}
-                    placeholder="Role"
-                  />
-                  <View style={styles.buttonRow}>
-                    <Button title="Save" onPress={handleEditSave} />
-                    <Button title="Cancel" color="#E31937" onPress={() => setEditModalVisible(false)} />
-                  </View>
-                </View>
-              </View>
-            </Modal>
+        visible={editModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setEditModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Edit Employee</Text>
+            <TextInput
+              style={styles.input}
+              value={editData?.empId}
+              onChangeText={txt => setEditData({ ...editData, empId: txt })}
+              placeholder="Employee ID"
+            />
+            <TextInput
+              style={styles.input}
+              value={editData?.name}
+              onChangeText={txt => setEditData({ ...editData, name: txt })}
+              placeholder="Name"
+            />
+            <TextInput
+              style={styles.input}
+              value={editData?.department}
+              onChangeText={txt => setEditData({ ...editData, department: txt })}
+              placeholder="Department"
+            />
+            <TextInput
+              style={styles.input}
+              value={editData?.role}
+              onChangeText={txt => setEditData({ ...editData, role: txt })}
+              placeholder="Role"
+            />
+            <View style={styles.buttonRow}>
+              <Button title="Save" onPress={handleEditSave} />
+              <Button title="Cancel" color="#E31937" onPress={() => setEditModalVisible(false)} />
+            </View>
+          </View>
+        </View>
+      </Modal>
       
-            {/* Add Employee Modal */}
-            <Modal
-              visible={addModalVisible}
-              animationType="slide"
-              transparent={true}
-              onRequestClose={() => setAddModalVisible(false)}
-            >
-              <View style={styles.modalContainer}>
-                <View style={styles.modalContent}>
-                  <Text style={styles.modalTitle}>Add New Employee</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={newEmployee.empId}
-                    onChangeText={txt => setNewEmployee({ ...newEmployee, empId: txt })}
-                    placeholder="Employee ID"
-                  />
-                  <TextInput
-                    style={styles.input}
-                    value={newEmployee.name}
-                    onChangeText={txt => setNewEmployee({ ...newEmployee, name: txt })}
-                    placeholder="Name"
-                  />
-                  <TextInput
-                    style={styles.input}
-                    value={newEmployee.department}
-                    onChangeText={txt => setNewEmployee({ ...newEmployee, department: txt })}
-                    placeholder="Department"
-                  />
-                  <TextInput
-                    style={styles.input}
-                    value={newEmployee.role}
-                    onChangeText={txt => setNewEmployee({ ...newEmployee, role: txt })}
-                    placeholder="Role"
-                  />
-                  <View style={styles.buttonRow}>
-                    <Button title="Add" onPress={handleAddEmployee} />
-                    <Button title="Cancel" color="#E31937" onPress={() => setAddModalVisible(false)} />
-                  </View>
-                </View>
-              </View>
-            </Modal>
+      {/* Add Employee Modal */}
+      <Modal
+        visible={addModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setAddModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Add New Employee</Text>
+            <TextInput
+              style={styles.input}
+              value={newEmployee.empId}
+              onChangeText={txt => setNewEmployee({ ...newEmployee, empId: txt })}
+              placeholder="Employee ID"
+            />
+            <TextInput
+              style={styles.input}
+              value={newEmployee.name}
+              onChangeText={txt => setNewEmployee({ ...newEmployee, name: txt })}
+              placeholder="Name"
+            />
+            <TextInput
+              style={styles.input}
+              value={newEmployee.department}
+              onChangeText={txt => setNewEmployee({ ...newEmployee, department: txt })}
+              placeholder="Department"
+            />
+            <TextInput
+              style={styles.input}
+              value={newEmployee.role}
+              onChangeText={txt => setNewEmployee({ ...newEmployee, role: txt })}
+              placeholder="Role"
+            />
+            <TextInput
+              style={styles.input}
+              value={newEmployee.email}
+              onChangeText={txt => setNewEmployee({ ...newEmployee, email: txt })}
+              placeholder="Email"
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+            <TextInput
+              style={styles.input}
+              value={newEmployee.state}
+              onChangeText={txt => setNewEmployee({ ...newEmployee, state: txt })}
+              placeholder="State"
+            />
+            <View style={styles.buttonRow}>
+              <Button title="Add" onPress={handleAddEmployee} />
+              <Button title="Cancel" color="#E31937" onPress={() => setAddModalVisible(false)} />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };

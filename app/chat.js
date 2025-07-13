@@ -1,7 +1,7 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
-import { addDoc, collection, doc, increment, setDoc } from 'firebase/firestore';
-import React, { useEffect, useRef, useState } from 'react';
+import { addDoc, collection, doc, getDoc, increment, setDoc, serverTimestamp } from 'firebase/firestore';
+import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
@@ -20,10 +20,11 @@ import { db } from '../config/firebase';
 const { width, height } = Dimensions.get('window');
 
 const CHAT_STATES = {
-  EMPLOYEE_ID: 'EMPLOYEE_ID',
   MOOD_SELECTION: 'MOOD_SELECTION',
   FOLLOW_UP: 'FOLLOW_UP',
   SECONDARY_QUESTION: 'SECONDARY_QUESTION',
+  THIRD_QUESTION: 'THIRD_QUESTION',
+  FOURTH_QUESTION: 'FOURTH_QUESTION',
   ELABORATION: 'ELABORATION',
   FINAL_MESSAGE: 'FINAL_MESSAGE',
   THANK_YOU: 'THANK_YOU'
@@ -35,7 +36,6 @@ const MOODS = [
   { id: 'mad', label: 'Mad 😠!', emoji: '😠', color: '#E31937' }
 ];
 
-// ... (keep all your existing GLAD_FLOW, SAD_FLOW, MAD_FLOW constants as they are)
 const GLAD_FLOW = {
   initialQuestion: {
     messages: [
@@ -50,7 +50,7 @@ const GLAD_FLOW = {
       { text: 'Work Environment', emoji: '🏢', value: 'Work Environment' },
       { text: 'Work Culture', emoji: '🌱', value: 'Work Culture' },
       { text: 'Work Life Balance', emoji: '⚖️', value: 'Work Life Balance' },
-      { text: 'Great Career', emoji: '📈', value: 'Great Career' },
+      
       { text: 'Workplace Opportunities', emoji: '🎯', value: 'Workplace Opportunities' }
     ],
      gifs: {
@@ -65,13 +65,13 @@ const GLAD_FLOW = {
     }
   },
   secondaryQuestion: {
-    question: "Did you get something that you were willing to have? Please describe your choice.",
+    question: "What precisely lead to this positive experience? Please describe your choice.",
     options: [
       { text: 'Constructive Feedback', value: 'Constructive Feedback' },
       { text: 'Appreciation', value: 'Appreciation' },
       { text: 'Good food', value: 'Good food' },
       { text: 'Experience', value: 'Experience' },
-      { text: 'Fulfilling target', value: 'Fulfilling target' },
+      
       { text: 'Opportunities', value: 'Opportunities' }
     ],
     gifs: {
@@ -83,8 +83,27 @@ const GLAD_FLOW = {
       'Opportunities': 'https://media1.tenor.com/images/018b82b7b47eb994dcb1c77aa0d49357/tenor.gif'
     }
   },
+   thirdQuestion: {
+    question: "How does this positive experience impact your work?",
+    options: [
+      { text: 'Makes me more productive', value: 'More productive' },
+      { text: 'Improves team collaboration', value: 'Better collaboration' },
+      { text: 'Boosts my creativity', value: 'Boosts creativity' },
+      { text: 'Increases my job satisfaction', value: 'Job satisfaction' },
+      { text: 'Motivates me to take on challenges', value: 'More motivated' }
+    ]
+  },
+  
+  fourthQuestion: {
+    question: "Would you like to share this positive experience with others?",
+    options: [
+      { text: 'Yes', value: 'Yes' },
+      { text: 'No, I prefer to keep it private', value: 'Keep private' },
+      
+    ]
+  },
   finalMessages: [
-    "It was pleasure talking with you, I am excited to keep working with you more, and of course have a laugh along the way😊!!",
+    "It was a pleasure talking to you. Glad to hear such positive work experience. Many more to come along😊!!",
     "Talk to you next time.",
     "Thank you have a nice day. 😊"
   ]
@@ -98,69 +117,76 @@ const SAD_FLOW = {
       "Which of the following best describes the problem you are facing?"
     ],
     options: [
-      { text: 'Less Opportunities', value: 'Less Opportunities' },
-      { text: 'Ideas Undervalued', value: 'Ideas Undervalued' },
-      { text: 'Disconnected (from work)', value: 'Disconnected (from work)' },
       { text: 'Unsupportive Manager', value: 'Unsupportive Manager' },
-      { text: 'Trust Issues', value: 'Trust Issues' },
-      { text: 'Less empowerment', value: 'Less empowerment (Zero control over Decision making)' },
       { text: 'Work Culture', value: 'Work Culture' },
       { text: 'Work Policies', value: 'Work Policies' },
-      { text: 'Peers', value: 'Peers' },
+      { text: 'Colleagues', value: 'Colleagues' },
       { text: 'Unclear role', value: 'Unclear role' },
-      { text: 'Communication gap', value: 'Communication gap' },
-      { text: 'Unachievable targets', value: 'Unachievable targets' },
       { text: 'Infrastructure', value: 'Infrastructure' },
-      { text: 'Work Life Balance', value: 'Work Life Balance' }
+      { text: 'Work Life balance', value: 'Work Life balance' }
     ],
     gifs: {
-      'Less Opportunities': 'https://media.tenor.com/images/59247714f3b114960746cd12e70aa156/tenor.gif',
-      'Ideas Undervalued': 'https://media.tenor.com/images/59a598e84ce877eb5d0fd287bc0e6570/tenor.gif',
-      'Disconnected (from work)': 'https://media.giphy.com/media/fYSc5d5XwHsRDQBMc9/giphy.gif',
       'Unsupportive Manager': 'https://64.media.tumblr.com/506a8671740f5704db5cd34f6c089bac/tumblr_n73q3tYGOJ1smcbm7o1_500.gif',
-      'Trust Issues': 'https://media.tenor.com/images/4dc0d395fe7bf0d7bb313a60ad8dd8dd/tenor.gif',
-      'Less empowerment (Zero control over Decision making)': 'https://media.giphy.com/media/YkOIc4AbInVzkufx8U/giphy.gif',
       'Work Culture': 'https://i.pinimg.com/originals/fe/16/95/fe169512003c32ca0deaf8d33d7d6d83.gif',
       'Work Policies': 'https://media.giphy.com/media/xUPJUKCtjmSxaCIfnO/giphy.gif',
-      'Peers': 'https://media1.tenor.com/images/a90c3d2016c34c7b1b9680be689e38a2/tenor.gif?itemid=3390650',
+      'Colleagues': 'https://media1.tenor.com/images/a90c3d2016c34c7b1b9680be689e38a2/tenor.gif?itemid=3390650',
       'Unclear role': 'https://media.tenor.com/images/a9cb2c1f5dfff33c20c1156d8c8e84f7/tenor.gif',
-      'Communication gap': 'https://media.giphy.com/media/TLJOmAuCvcGGh0xb3c/giphy.gif',
-      'Unachievable targets': 'https://media.giphy.com/media/3owzWl78kny9s2GOvC/giphy.gif',
       'Infrastructure': 'https://kmtgroup.co.za/wp-content/uploads/2019/08/infra-1.gif',
-      'Work Life Balance': 'https://cdn.dribbble.com/users/953331/screenshots/6511780/worklifebalance_dribbble.gif'
+      'Work Life balance': 'https://cdn.dribbble.com/users/953331/screenshots/6511780/worklifebalance_dribbble.gif'
     }
   },
   secondaryQuestion: {
-    question: "Think about what they tell about what is bothering you?",
+    question: "What specifically about that is bothering you? ",
     options: [
-      { text: 'Boss/colleagues', value: 'Boss/colleagues' },
-      { text: 'Something bad happened today', value: 'Something bad that happened today' },
-      { text: 'Did not get appreciated', value: 'Did not get appreciated' },
-      { text: 'Wasn\'t able to achieve something', value: 'Wasn\'t able to achieve something' },
-      { text: 'By the work environment', value: 'By the work environment' },
-      { text: 'Had an argument with someone', value: 'Had an argument with someone' },
-      { text: 'Department', value: 'Department' },
-      { text: 'Role', value: 'Role' },
+      { text: 'Clarity', value: 'Clarity' },
       { text: 'Work station', value: 'Work station' },
-      { text: 'Other', value: 'Other' }
+      { text: 'Had an argument with someone', value: 'Had an argument with someone' },
+      { text: 'Wasn’t able to achieve something', value: 'Wasn’t able to achieve something' },
+      { text: 'feeling Unheard', value: 'feeling Unheard' },
+      { text: 'Ideas undervalued', value: 'Ideas undervalued' },
+      { text: 'less opportunities', value: 'less opportunities' },
+      { text: 'unachievable targets', value: 'unachievable targets' },
+      { text: 'Communication gap', value: 'Communication gap' }
     ],
     gifs: {
-      'Boss/colleagues': 'https://media3.giphy.com/media/xT5LMYcpLi12zkkTVm/giphy.gif',
-      'Something bad that happened today': 'https://media1.tenor.com/images/bcf9ac7bf1f148ff5c632e5c16cca51d/tenor.gif?itemid=16744961',
-      'Did not get appreciated': 'https://media.tenor.com/images/960f4694bdb04d2c709e19673d93a4f0/tenor.gif',
-      'Wasn\'t able to achieve something': 'https://media0.giphy.com/media/3HuJrvIm6jfdkeqPBy/giphy.gif',
-      'By the work environment': 'https://media1.tenor.com/images/d46b1d9c8c7947c6e84942bd336e98d8/tenor.gif?itemid=4412956',
+      'Clarity': 'https://i.pinimg.com/originals/92/4b/0e/924b0ec02c6521302cb630f476de21d0.gif',
+      'Work station': 'https://media1.tenor.com/images/12932a3301c8355802d458249fd2c6cb/tenor.gif?itemid=11383230',
       'Had an argument with someone': 'https://media1.tenor.com/images/b68dd33c82af7c133b0b22629e00cdb9/tenor.gif?itemid=14891189',
-      'Department': 'https://media1.tenor.com/images/1231e5edc51da122defab27ac817b330/tenor.gif?itemid=13429068',
-      'Role': 'https://media1.tenor.com/images/c75952b989d9e9f792173a67bb5f81a2/tenor.gif?itemid=14850605',
-      'Work station': 'https://media1.tenor.com/images/12932a3301c8355802d458249fd2c6cb/tenor.gif?itemid=11383230'
+      'Wasn’t able to achieve something': 'https://media0.giphy.com/media/3HuJrvIm6jfdkeqPBy/giphy.gif',
+      'feeling Unheard': 'https://media.tenor.com/images/960f4694bdb04d2c709e19673d93a4f0/tenor.gif',
+      'Ideas undervalued': 'https://media.tenor.com/images/59a598e84ce877eb5d0fd287bc0e6570/tenor.gif',
+      'less opportunities': 'https://media.tenor.com/images/59247714f3b114960746cd12e70aa156/tenor.gif',
+      'unachievable targets': 'https://media.giphy.com/media/3owzWl78kny9s2GOvC/giphy.gif',
+      'Communication gap': 'https://media.giphy.com/media/TLJOmAuCvcGGh0xb3c/giphy.gif'
     }
   },
+  thirdQuestion: {
+    question: "How long have you been feeling this way?",
+    options: [
+      { text: 'Just today', value: 'One day' },
+      { text: 'A few days', value: 'Few days' },
+      { text: 'About a week', value: 'One week' },
+      { text: 'Several weeks', value: 'Several weeks' },
+      { text: 'Months or longer', value: 'Months+' }
+    ]
+  },
+  
+  fourthQuestion: {
+    question: "What would help improve this situation?",
+    options: [
+      { text: 'More support from management', value: 'More support' },
+      { text: 'Clearer communication', value: 'Better communication' },
+    
+      { text: 'More recognition', value: 'More recognition' },
+      { text: 'Changes in work processes', value: 'Process changes' }
+    ]
+  },
   finalMessages: [
+    " We understand why you might be feeling this way.",
     "I will forward your input to my creators and they will get back to you soon.",
     "Here are some suggestions that may make you feel relaxed: ",
-    "Listening to Music, paint or sketch something out 🎧, Yoga and Meditation 🧘, Re-watch something that makes you feel good 🚗",
-    "It was nice talking to you, I hope you are feeling relaxed after the conversation.😊"
+    "Listening to Music 🎧,Breathing exercises, Chair Yoga, Take a tea/coffee break, talk to a friend/ loved one ",
+    "It was nice talking to you! mDojo is signing Off now.😊"
   ]
 };
 
@@ -169,66 +195,85 @@ const MAD_FLOW = {
     messages: [
       "Hi, I see that you are mad 😠",
       "https://media.tenor.com/images/204371c3eb3e3cf8f24b954965601c48/tenor.gif",
-      "Can you describe what caused you feel this way?"
+      "Can you describe what caused you to feel this way?"
     ],
     options: [
-      { text: 'Peers, boss, colleagues', value: 'Peers, boss, colleagues, people around you' },
-      { text: 'Things that happened today', value: 'Things that happened today' },
-      { text: 'Did not get appreciated', value: 'Did not get appreciated' },
-      { text: 'Had an argument with colleague', value: 'Had an argument with colleague' },
-      { text: 'Annoyed by work environment', value: 'Annoyed by the disturbances of the work environment' },
-      { text: 'Department', value: 'Department' },
+      { text: 'Boss', value: 'Boss' },
+      { text: 'colleague', value: 'colleague' },
+      { text: 'work environment', value: 'work environment' },
+      { text: 'Work policies', value: 'Work policies' },
       { text: 'Role', value: 'Role' },
-      { text: 'Other', value: 'Other' }
+      { text: 'Infrastructure', value: 'Infrastructure' },
+      { text: 'Work life balance', value: 'Work life balance' }
     ],
     gifs: {
-      'Peers, boss, colleagues, people around you': 'https://media1.tenor.com/images/4695160bad4b1dba0a866a2f7ff2cd9a/tenor.gif?itemid=18007423',
-      'Things that happened today': 'https://media1.tenor.com/images/b68dd33c82af7c133b0b22629e00cdb9/tenor.gif?itemid=14891189',
-      'Did not get appreciated': 'https://media3.giphy.com/media/xUySTD7evBn33BMq3K/giphy.gif',
-      'Had an argument with colleague': 'https://media3.giphy.com/media/3o6fJdlKejPY66AqHK/giphy.gif',
-      'Annoyed by the disturbances of the work environment': 'https://media3.giphy.com/media/3ofT5PzgI9FSn8vPaw/giphy.gif',
-      'Department': 'https://media1.tenor.com/images/00c5e6a4740b604bcbabede92b1cdd6c/tenor.gif?itemid=12615097',
-      'Role': 'https://media1.tenor.com/images/c75952b989d9e9f792173a67bb5f81a2/tenor.gif?itemid=14850605'
+      'Boss': 'https://media1.tenor.com/images/4695160bad4b1dba0a866a2f7ff2cd9a/tenor.gif?itemid=18007423',
+      'colleague': 'https://media3.giphy.com/media/3o6fJdlKejPY66AqHK/giphy.gif',
+      'work environment': 'https://media3.giphy.com/media/3ofT5PzgI9FSn8vPaw/giphy.gif',
+      'Work policies': 'https://media.giphy.com/media/xUPJUKCtjmSxaCIfnO/giphy.gif',
+      'Role': 'https://media1.tenor.com/images/c75952b989d9e9f792173a67bb5f81a2/tenor.gif?itemid=14850605',
+      'Infrastructure': 'https://media1.tenor.com/images/00c5e6a4740b604bcbabede92b1cdd6c/tenor.gif?itemid=12615097',
+      'Work life balance': 'https://cdn.dribbble.com/users/953331/screenshots/6511780/worklifebalance_dribbble.gif'
     }
   },
   secondaryQuestion: {
-    question: "Think about what they tell about what is bothering you?",
+    question: "What specifically about that is bothering you? ",
     options: [
-      { text: 'Work Pressure', value: 'Work Pressure' },
-      { text: 'Depression', value: 'Depression' },
-      { text: 'Personal Issues at work', value: 'Personal Issues at the time of work' },
-      { text: 'Unorganized Work', value: 'Unorganized Work' },
-      { text: 'Hygiene', value: 'Hygiene' },
-      { text: 'No clarity in communication', value: 'No clarity in communication' },
-      { text: 'Infrastructure', value: 'Infrastructure' }
+      { text: 'Deadlines', value: 'Deadlines' },
+      { text: 'Work pressure', value: 'Work pressure' },
+      { text: 'personal issues at work', value: 'personal issues at work' },
+      { text: 'hygiene', value: 'hygiene' },
+      { text: 'communication gap', value: 'communication gap' },
+      { text: 'feeling unheard', value: 'feeling unheard' },
+      { text: 'unsolved complaints', value: 'unsolved complaints' }
     ],
     gifs: {
-      'Work Pressure': 'https://i.gifer.com/2A83.gif',
-      'Depression': 'https://media1.tenor.com/images/a5788318206710f0f59e7147a896d291/tenor.gif',
-      'Personal Issues at the time of work': 'https://media.giphy.com/media/U16OUT29Z6AbNqnqkn/giphy.gif',
-      'Unorganized Work': 'https://media3.giphy.com/media/ZD8ZjehSsLDZQRKJjJ/giphy.gif',
-      'Hygiene': 'https://66.media.tumblr.com/eb9048d0bf3fcabd61f73d17ba356ff7/tumblr_n9mzlc2Owu1ql5yr7o1_500.gif',
-      'No clarity in communication': 'https://i.pinimg.com/originals/92/4b/0e/924b0ec02c6521302cb630f476de21d0.gif',
-      'Infrastructure': 'https://31.media.tumblr.com/506a8671740f5704db5cd34f6c089bac/tumblr_n73q3tYGOJ1smcbm7o1_500.gif'
+      'Deadlines': 'https://media.giphy.com/media/3owzWl78kny9s2GOvC/giphy.gif',
+      'Work pressure': 'https://i.gifer.com/2A83.gif',
+      'personal issues at work': 'https://media.giphy.com/media/U16OUT29Z6AbNqnqkn/giphy.gif',
+      'hygiene': 'https://66.media.tumblr.com/eb9048d0bf3fcabd61f73d17ba356ff7/tumblr_n9mzlc2Owu1ql5yr7o1_500.gif',
+      'communication gap': 'https://media.giphy.com/media/TLJOmAuCvcGGh0xb3c/giphy.gif',
+      'feeling unheard': 'https://media.tenor.com/images/960f4694bdb04d2c709e19673d93a4f0/tenor.gif',
+      'unsolved complaints': 'https://media1.tenor.com/images/4dc0d395fe7bf0d7bb313a60ad8dd8dd/tenor.gif'
     }
   },
+  thirdQuestion: {
+    question: "How intense is this feeling?",
+    options: [
+      { text: 'annoyed', value: 'Mild' },
+      { text: 'Frustrated', value: 'Frustrated' },
+      { text: 'Angry', value: 'Angry' },
+      { text: 'Very angry', value: 'Very angry' },
+      { text: 'Extremely upset', value: 'Extremely upset' }
+    ]
+  },
+  
+  fourthQuestion: {
+    question: "Have you tried resolving this issue from your end? ",
+    options: [
+      { text: 'Yes, talked to the person involved', value: 'Talked directly' },
+
+      { text: 'No, Confused about plan of action.', value: 'Confused' },
+      { text: 'No, not sure how to address it', value: 'Unsure' },
+      { text: 'No, afraid of consequences', value: 'Fear' }
+    ]
+  },
   finalMessages: [
-    "Humans feel depressed angry and frustrated when something they are trying to do is blocked or something has not been according to their wish?",
-    "Now turn that frown☹ upside down😊 even if it means standing on your head",
+    
+    "We understand why you might be feeling this way.",
     "I will forward your input to my creators and they will get back to you soon.",
     "Here are some suggestions that may make you feel relaxed: ",
-    "Listening to Music, paint or sketch something out 🎧, Yoga and Meditation 🧘, Re-watch something that makes you feel good 🚗",
+    "Listening to Music 🎧, , Breathing exercises, Chair Yoga, Take a tea/coffee break, talk to a friend/ loved one",
     "It was nice chatting with you, mDOJO is signing off now."
   ]
 };
 
 const ChatScreen = () => {
-  const { employeeId: loggedInEmployeeId } = useLocalSearchParams();
+  const { employeeId: loggedInEmployeeId, employeeName } = useLocalSearchParams();
   const [isTyping, setIsTyping] = useState(false);
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState([]);
-  const [chatState, setChatState] = useState(CHAT_STATES.EMPLOYEE_ID);
-  const [employeeId, setEmployeeId] = useState('');
+  const [chatState, setChatState] = useState(CHAT_STATES.MOOD_SELECTION);
   const [selectedMood, setSelectedMood] = useState(null);
   const [selectedOption, setSelectedOption] = useState(null);
   const [selectedSecondaryOption, setSelectedSecondaryOption] = useState(null);
@@ -238,17 +283,59 @@ const ChatScreen = () => {
   const [showSecondaryOptions, setShowSecondaryOptions] = useState(false);
   const scrollViewRef = useRef(null);
   const fadeAnim = useState(new Animated.Value(0))[0];
+  const followUpScrollRef = useRef(null);
+
+  const secondaryScrollRef = useRef(null);
+  const [selectedThirdOption, setSelectedThirdOption] = useState(null);
+  const [selectedFourthOption, setSelectedFourthOption] = useState(null);
+  const [showThirdOptions, setShowThirdOptions] = useState(false);
+  const [showFourthOptions, setShowFourthOptions] = useState(false);
+  const [userName, setUserName] = useState('');
+
+  const thirdScrollRef = useRef(null);
+  const fourthScrollRef = useRef(null);
 
   useEffect(() => {
-    const welcomeMessage = {
+    const fetchUserName = async () => {
+      if (!loggedInEmployeeId) return;
+      try {
+        const userDoc = await getDoc(doc(db, 'employees', loggedInEmployeeId));
+        if (userDoc.exists()) {
+          setUserName(userDoc.data().name);
+        } else {
+          setUserName('User');
+        }
+      } catch (error) {
+        setUserName('User');
+      }
+    };
+
+    fetchUserName();
+  }, [loggedInEmployeeId]);
+
+  useEffect(() => {
+    // Show two welcome messages: one general, one personalized
+    const welcomeMessage1 = {
       id: 1,
-      text: "Welcome to mDojo! Please enter your Employee ID to continue.",
+      text: "Welcome to mDojo!",
       isUser: false,
       time: new Date()
     };
-    setMessages([welcomeMessage]);
+    const userNameToShow = employeeName || userName || 'User';
+    const welcomeMessage2 = {
+      id: 2,
+      text: `Hi, ${userNameToShow}!`,
+      isUser: false,
+      time: new Date()
+    };
+    setMessages([welcomeMessage1, welcomeMessage2]);
+    setTimeout(() => {
+      showMoodSelection();
+    }, 800);
+    setChatState(CHAT_STATES.MOOD_SELECTION);
   }, []);
-useEffect(() => {
+
+  useEffect(() => {
     if (scrollViewRef.current) {
       scrollViewRef.current.scrollToEnd({ animated: true });
     }
@@ -261,122 +348,126 @@ useEffect(() => {
       useNativeDriver: true,
     }).start();
   }, []);
-  // ... (keep all your existing useEffect hooks for scrolling and animation)
 
- const saveEmployeeMood = async (id, mood) => {
-  try {
-    if (!mood) {
-      console.warn("Missing employeeId or mood", { id, mood });
-      return;
-    }
-    
-    console.log("Saving employee mood:", { employeeId: id, mood });
-    
-    await addDoc(collection(db, 'employeeMoods'), {
-      employeeId: id.trim(),
-      mood: mood,
-      timestamp: new Date()
-    });
-    
-    console.log("Employee mood saved successfully");
-  } catch (error) {
-    console.error("Error saving employee mood: ", error);
-    Alert.alert("Error", "Failed to save mood. Please try again.");
-  }
-};
-
-  const saveChatResponse = async () => {
+  const saveEmployeeMood = async (id, mood) => {
     try {
+      if (!mood) {
+        console.warn("Missing employeeId or mood", { id, mood });
+        return false;
+      }
+      
+      console.log("Saving employee mood:", { employeeId: id, mood });
+      
+      // Save to chatResponses collection for dashboard
       await addDoc(collection(db, 'chatResponses'), {
-        employeeId,
-        mood: selectedMood,
-        primaryOption: selectedOption,
-        secondaryOption: selectedSecondaryOption,
-        elaboration,
-        timestamp: new Date()
+        employeeId: id.trim(),
+        mood: mood,
+        timestamp: serverTimestamp(),
+        date: new Date().toISOString().split('T')[0],
+        // Include additional context if available
+        ...(selectedOption && { primaryOption: selectedOption }),
+        ...(selectedSecondaryOption && { secondaryOption: selectedSecondaryOption }),
+        ...(selectedThirdOption && { thirdOption: selectedThirdOption }),
+        ...(selectedFourthOption && { fourthOption: selectedFourthOption }),
+        ...(elaboration && { elaboration: elaboration })
       });
+      
+      // Also save to employeeMoods for backward compatibility
+      await addDoc(collection(db, 'employeeMoods'), {
+        employeeId: id.trim(),
+        mood: mood,
+        timestamp: serverTimestamp()
+      });
+      
+      console.log("Employee mood saved successfully");
+      return true;
     } catch (error) {
-      console.error("Error saving chat response: ", error);
+      console.error("Error saving employee mood: ", error);
+      Alert.alert("Error", "Failed to save mood. Please try again.");
+      return false;
     }
   };
 
   const updateMoodCount = async (mood) => {
-  try {
-    if (!mood) {
-      console.warn("No mood provided for count update");
-      return;
+    try {
+      if (!mood) {
+        console.warn("No mood provided for count update");
+        return;
+      }
+      
+      // Update daily mood count
+      const dailyMoodRef = doc(db, 'moodCounts', 'daily');
+      await setDoc(dailyMoodRef, {
+        [mood]: increment(1),
+        lastUpdated: serverTimestamp(),
+        // Keep track of the last update time
+        lastUpdatedFormatted: new Date().toISOString()
+      }, { merge: true });
+      
+      // Also update the current counts for backward compatibility
+      const moodCountRef = doc(db, 'moodCounts', 'currentCounts');
+      await setDoc(moodCountRef, {
+        [mood]: increment(1),
+        lastUpdated: serverTimestamp()
+      }, { merge: true });
+      
+      console.log("Mood count updated successfully for:", mood);
+    } catch (error) {
+      console.error("Error updating mood count: ", error);
+      Alert.alert("Error", "Failed to update mood count.");
     }
+  };
+  
+  // Function to save complete chat response (including all options and elaboration)
+  const saveChatResponse = async () => {
+    try {
+      const responseData = {
+        employeeId: loggedInEmployeeId,
+        mood: selectedMood,
+        timestamp: serverTimestamp(),
+        date: new Date().toISOString().split('T')[0],
+        ...(selectedOption && { primaryOption: selectedOption }),
+        ...(selectedSecondaryOption && { secondaryOption: selectedSecondaryOption }),
+        ...(selectedThirdOption && { thirdOption: selectedThirdOption }),
+        ...(selectedFourthOption && { fourthOption: selectedFourthOption }),
+        ...(elaboration && { elaboration: elaboration })
+      };
+      
+      await addDoc(collection(db, 'chatResponses'), responseData);
+      console.log('Chat response saved successfully');
+    } catch (error) {
+      console.error("Error saving chat response: ", error);
+      Alert.alert("Error", "Failed to save chat response. Please try again.");
+    }
+  };
+
+const handleMoodSelect = async (mood) => {
+    const moodData = MOODS.find(m => m.id === mood);
+    setSelectedMood(mood);
     
-    const moodCountRef = doc(db, 'moodCounts', 'currentCounts');
-    await setDoc(moodCountRef, {
-      [mood]: increment(1)
-    }, { merge: true });
-    console.log("Mood count updated successfully for:", mood);
-  } catch (error) {
-    console.error("Error updating mood count: ", error);
-    Alert.alert("Error", "Failed to update mood count.");
-  }
-};
-
-  const handleEmployeeIdSubmit = async () => {
-    const trimmedId = employeeId.trim().toUpperCase();
-    console.log("Submitting employee ID:", trimmedId);
-
-    // Validation 1: Check if ID is entered
-    if (!trimmedId) {
-      Alert.alert("Error", "Please enter a valid Employee ID");
-      return;
-    }
-
-    if (trimmedId !== loggedInEmployeeId) {
-      Alert.alert(
-        "ID Mismatch",
-        "The Employee ID you entered does not match the logged-in user's ID. Please enter the correct ID to proceed."
-      );
-      return;
-    }
-
-    const userMessage = {
+    const userMoodMessage = {
       id: Date.now(),
-      text: `Employee ID: ${trimmedId}`,
+      text: moodData.label,
       isUser: true,
-      time: new Date(),
+      time: new Date()
     };
 
-    setMessages((prev) => [...prev, userMessage]);
-    setEmployeeId(trimmedId);
-
-    setTimeout(() => {
-      showMoodSelection();
-    }, 500);
-  };
-const handleMoodSelect = async (mood) => {
-  const moodData = MOODS.find(m => m.id === mood);
-  setSelectedMood(mood);
-  
-  const userMoodMessage = {
-    id: Date.now(),
-    text: moodData.label,
-    isUser: true,
-    time: new Date()
-  };
-
-  setMessages(prev => [...prev, userMoodMessage]);
-  
-  try {
-    await saveEmployeeMood(employeeId, mood);
-    await updateMoodCount(mood);
+    setMessages(prev => [...prev, userMoodMessage]);
     
-    const flow = mood === 'glad' ? GLAD_FLOW : 
-                 mood === 'sad' ? SAD_FLOW : MAD_FLOW;
-    setCurrentFlow(flow);
-    
-    showInitialQuestion(mood);
-  } catch (error) {
-    console.error("Error in mood selection flow:", error);
-    Alert.alert("Error", "There was a problem processing your selection.");
-  }
-};
+    try {
+      await saveEmployeeMood(loggedInEmployeeId, mood);
+      await updateMoodCount(mood);
+      
+      const flow = mood === 'glad' ? GLAD_FLOW : 
+                   mood === 'sad' ? SAD_FLOW : MAD_FLOW;
+      setCurrentFlow(flow);
+      
+      showInitialQuestion(mood);
+    } catch (error) {
+      console.error("Error in mood selection flow:", error);
+      Alert.alert("Error", "There was a problem processing your selection.");
+    }
+  };
 
   const handleElaborationSubmit = async () => {
     if (!elaboration.trim()) return;
@@ -391,21 +482,23 @@ const handleMoodSelect = async (mood) => {
     setMessages(prev => [...prev, elaborationMessage]);
     setElaboration('');
     
-    // Save the complete chat response to Firebase
     await saveChatResponse();
     
     setTimeout(() => {
       showFinalMessages();
     }, 500);
   };
+
   const handleSend = () => {
-    if (chatState === CHAT_STATES.EMPLOYEE_ID) {
-      handleEmployeeIdSubmit();
-    } else if (chatState === CHAT_STATES.ELABORATION) {
+    if (chatState === CHAT_STATES.ELABORATION) {
       handleElaborationSubmit();
     }
   };
+
   const isSendDisabled = () => {
+     if (chatState === CHAT_STATES.ELABORATION) {
+    return !elaboration || elaboration.trim().length < 5;
+  }
     if (chatState === CHAT_STATES.MOOD_SELECTION || 
         chatState === CHAT_STATES.THANK_YOU ||
         chatState === CHAT_STATES.FOLLOW_UP ||
@@ -413,16 +506,9 @@ const handleMoodSelect = async (mood) => {
       return true;
     }
     
-    if (chatState === CHAT_STATES.EMPLOYEE_ID) {
-      return !employeeId || !employeeId.trim();
-    }
-    
-    if (chatState === CHAT_STATES.ELABORATION) {
-      return !elaboration || !elaboration.trim();
-    }
-    
     return !message || !message.trim();
   };
+
   const showMoodSelection = () => {
     const moodQuestion = {
       id: Date.now() + 1,
@@ -435,10 +521,10 @@ const handleMoodSelect = async (mood) => {
     setMessages(prev => [...prev, moodQuestion]);
     setChatState(CHAT_STATES.MOOD_SELECTION);
   };
-    const showInitialQuestion = (mood) => {
+
+  const showInitialQuestion = (mood) => {
     const flow = mood === 'glad' ? GLAD_FLOW : mood === 'sad' ? SAD_FLOW : MAD_FLOW;
     
-    // First message (text)
     const firstMessage = {
       id: Date.now() + 1,
       text: flow.initialQuestion.messages[0],
@@ -448,7 +534,6 @@ const handleMoodSelect = async (mood) => {
     
     setMessages(prev => [...prev, firstMessage]);
     
-    // Second message (GIF)
     setTimeout(() => {
       const gifMessage = {
         id: Date.now() + 2,
@@ -459,7 +544,6 @@ const handleMoodSelect = async (mood) => {
       };
       setMessages(prev => [...prev, gifMessage]);
       
-      // Third message (question)
       setTimeout(() => {
         const questionMessage = {
           id: Date.now() + 3,
@@ -474,6 +558,7 @@ const handleMoodSelect = async (mood) => {
       }, 1000);
     }, 1000);
   };
+
   const handleOptionSelect = (option) => {
     const optionMessage = {
       id: Date.now(),
@@ -487,7 +572,6 @@ const handleMoodSelect = async (mood) => {
     setShowOptions(false);
     
     setTimeout(() => {
-      // Show the GIF for the selected option
       const gifUrl = currentFlow.initialQuestion.gifs[option.value];
       if (gifUrl) {
         const gifMessage = {
@@ -500,7 +584,6 @@ const handleMoodSelect = async (mood) => {
         setMessages(prev => [...prev, gifMessage]);
       }
       
-      // Show the secondary question
       setTimeout(() => {
         const secondaryQuestion = {
           id: Date.now() + 2,
@@ -515,46 +598,108 @@ const handleMoodSelect = async (mood) => {
       }, 1000);
     }, 500);
   };
-  const handleSecondaryOptionSelect = (option) => {
-    const optionMessage = {
-      id: Date.now(),
-      text: option.text,
-      isUser: true,
-      time: new Date()
-    };
 
-    setSelectedSecondaryOption(option.value);
-    setMessages(prev => [...prev, optionMessage]);
-    setShowSecondaryOptions(false);
+const handleSecondaryOptionSelect = (option) => {
+  const optionMessage = {
+    id: Date.now(),
+    text: option.text,
+    isUser: true,
+    time: new Date()
+  };
+
+  setSelectedSecondaryOption(option.value);
+  setMessages(prev => [...prev, optionMessage]);
+  setShowSecondaryOptions(false);
+  
+  setTimeout(() => {
+    const gifUrl = currentFlow.secondaryQuestion.gifs[option.value];
+    if (gifUrl) {
+      const gifMessage = {
+        id: Date.now() + 1,
+        text: gifUrl,
+        isUser: false,
+        time: new Date(),
+        isGif: true
+      };
+      setMessages(prev => [...prev, gifMessage]);
+    }
     
     setTimeout(() => {
-      // Show the GIF for the selected secondary option
-      const gifUrl = currentFlow.secondaryQuestion.gifs[option.value];
-      if (gifUrl) {
-        const gifMessage = {
-          id: Date.now() + 1,
-          text: gifUrl,
-          isUser: false,
-          time: new Date(),
-          isGif: true
-        };
-        setMessages(prev => [...prev, gifMessage]);
-      }
-      
-      // Ask for elaboration
-      setTimeout(() => {
-        const elaborationPrompt = {
-          id: Date.now() + 2,
-          text: "Please elaborate on your options chosen above. Share evidences.",
-          isUser: false,
-          time: new Date()
-        };
-        setMessages(prev => [...prev, elaborationPrompt]);
-        setChatState(CHAT_STATES.ELABORATION);
-      }, 1000);
-    }, 500);
+      const thirdQuestion = {
+        id: Date.now() + 2,
+        text: currentFlow.thirdQuestion.question,
+        isUser: false,
+        time: new Date(),
+        isFollowUp: true
+      };
+      setMessages(prev => [...prev, thirdQuestion]);
+      setChatState(CHAT_STATES.THIRD_QUESTION);
+      setShowThirdOptions(true);
+    }, 1000);
+  }, 500);
+};
+
+// Add new handler for third question
+const handleThirdOptionSelect = (option) => {
+  const optionMessage = {
+    id: Date.now(),
+    text: option.text,
+    isUser: true,
+    time: new Date()
   };
-const showFinalMessages = () => {
+
+  setSelectedThirdOption(option.value);
+  setMessages(prev => [...prev, optionMessage]);
+  setShowThirdOptions(false);
+  
+  setTimeout(() => {
+    setTimeout(() => {
+      const fourthQuestion = {
+        id: Date.now() + 1,
+        text: currentFlow.fourthQuestion.question,
+        isUser: false,
+        time: new Date(),
+        isFollowUp: true
+      };
+      setMessages(prev => [...prev, fourthQuestion]);
+      setChatState(CHAT_STATES.FOURTH_QUESTION);
+      setShowFourthOptions(true);
+    }, 1000);
+  }, 500);
+};
+
+// Add new handler for fourth question
+const handleFourthOptionSelect = (option) => {
+  const optionMessage = {
+    id: Date.now(),
+    text: option.text,
+    isUser: true,
+    time: new Date()
+  };
+
+  setSelectedFourthOption(option.value);
+  setMessages(prev => [...prev, optionMessage]);
+  setShowFourthOptions(false);
+  
+  setTimeout(() => {
+    // If user selects 'No, I prefer to keep it private', skip elaboration and show final messages
+    if (option.value === 'Keep private') {
+      saveChatResponse(); // Save the response before showing final messages
+      showFinalMessages();
+      return;
+    }
+    const elaborationPrompt = {
+      id: Date.now() + 1,
+      text: "Please elaborate yourself .",
+      isUser: false,
+      time: new Date()
+    };
+    setMessages(prev => [...prev, elaborationPrompt]);
+    setChatState(CHAT_STATES.ELABORATION);
+  }, 1000);
+};
+
+  const showFinalMessages = () => {
     const finalMessages = currentFlow.finalMessages;
     
     finalMessages.forEach((msg, index) => {
@@ -573,109 +718,212 @@ const showFinalMessages = () => {
       }, index * 1000);
     });
   };
-   const renderMoodSelection = () => {
-  // Only render when in MOOD_SELECTION state and no mood has been selected yet
-  if (chatState !== CHAT_STATES.MOOD_SELECTION || selectedMood) return null;
+
+  const renderMoodSelection = () => {
+    if (chatState !== CHAT_STATES.MOOD_SELECTION || selectedMood) return null;
+    
+    return (
+      <View style={styles.moodSelectionContainer}>
+        <Text style={styles.sectionTitle}>How are you feeling today?</Text>
+        <View style={styles.moodGrid}>
+          {MOODS.map((mood) => (
+            <TouchableOpacity
+              key={mood.id}
+              style={[
+                styles.moodCard,
+                selectedMood === mood.id && styles.selectedMoodCard,
+                { borderColor: mood.color }
+              ]}
+              onPress={() => handleMoodSelect(mood.id)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.moodEmoji}>{mood.emoji}</Text>
+              <Text style={styles.moodLabel}>{mood.label}</Text>
+              {selectedMood === mood.id && (
+                <View style={[styles.selectionIndicator, { backgroundColor: mood.color }]} />
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+    );
+  };
+
+  const renderFollowUpOptions = () => {
+    if (!showOptions || chatState !== CHAT_STATES.FOLLOW_UP || !selectedMood || !currentFlow) return null;
+    
+    const scrollLeft = () => {
+      followUpScrollRef.current?.scrollTo({ x: 0, animated: true });
+    };
+    
+    const scrollRight = () => {
+      followUpScrollRef.current?.scrollToEnd({ animated: true });
+    };
+    
+    return (
+      <View style={styles.optionsContainer}>
+        <TouchableOpacity 
+          style={styles.scrollArrowLeft} 
+          onPress={scrollLeft}
+        >
+          <MaterialIcons name="chevron-left" size={24} color="#FFF" />
+        </TouchableOpacity>
+        
+        <ScrollView 
+          ref={followUpScrollRef}
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.optionsScrollContent}
+        >
+          {currentFlow.initialQuestion.options.map((option, index) => (
+            <TouchableOpacity
+              key={index}
+              style={[
+                styles.optionButton,
+                { backgroundColor: '#E31937' }
+              ]}
+              onPress={() => handleOptionSelect(option)}
+            >
+              {option.emoji && <Text style={styles.optionEmoji}>{option.emoji}</Text>}
+              <Text style={styles.optionText}>{option.text}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+        
+        <TouchableOpacity 
+          style={styles.scrollArrowRight} 
+          onPress={scrollRight}
+        >
+          <MaterialIcons name="chevron-right" size={24} color="#FFF" />
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
+  const renderSecondaryOptions = () => {
+    if (!showSecondaryOptions || chatState !== CHAT_STATES.SECONDARY_QUESTION || !selectedMood || !currentFlow) return null;
+    
+    const scrollLeft = () => {
+      secondaryScrollRef.current?.scrollTo({ x: 0, animated: true });
+    };
+    
+    const scrollRight = () => {
+      secondaryScrollRef.current?.scrollToEnd({ animated: true });
+    };
+    
+    return (
+      <View style={styles.optionsContainer}>
+        <TouchableOpacity 
+          style={styles.scrollArrowLeft} 
+          onPress={scrollLeft}
+        >
+          <MaterialIcons name="chevron-left" size={24} color="#FFF" />
+        </TouchableOpacity>
+        
+        <ScrollView 
+          ref={secondaryScrollRef}
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.optionsScrollContent}
+        >
+          {currentFlow.secondaryQuestion.options.map((option, index) => (
+            <TouchableOpacity
+              key={index}
+              style={[
+                styles.optionButton,
+                { backgroundColor: '#E31937' }
+              ]}
+              onPress={() => handleSecondaryOptionSelect(option)}
+            >
+              <Text style={styles.optionText}>{option.text}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+        
+        <TouchableOpacity 
+          style={styles.scrollArrowRight} 
+          onPress={scrollRight}
+        >
+          <MaterialIcons name="chevron-right" size={24} color="#FFF" />
+        </TouchableOpacity>
+      </View>
+    );
+  };
+  const renderThirdOptions = () => {
+  if (!showThirdOptions || chatState !== CHAT_STATES.THIRD_QUESTION || !currentFlow?.thirdQuestion) return null;
   
   return (
-    <View style={styles.moodSelectionContainer}>
-      <Text style={styles.sectionTitle}>How are you feeling today?</Text>
-      <View style={styles.moodGrid}>
-        {MOODS.map((mood) => (
+    <View style={styles.optionsContainer}>
+      <TouchableOpacity 
+        style={styles.scrollArrowLeft} 
+        onPress={() => thirdScrollRef.current?.scrollTo({ x: 0, animated: true })}
+      >
+        <MaterialIcons name="chevron-left" size={24} color="#FFF" />
+      </TouchableOpacity>
+      <ScrollView 
+        ref={thirdScrollRef}
+        horizontal 
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.optionsScrollContent}
+      >
+        {currentFlow.thirdQuestion.options.map((option, index) => (
           <TouchableOpacity
-            key={mood.id}
-            style={[
-              styles.moodCard,
-              selectedMood === mood.id && styles.selectedMoodCard,
-              { borderColor: mood.color }
-            ]}
-            onPress={() => handleMoodSelect(mood.id)}
-            activeOpacity={0.8}
+            key={index}
+            style={styles.optionButton}
+            onPress={() => handleThirdOptionSelect(option)}
           >
-            <Text style={styles.moodEmoji}>{mood.emoji}</Text>
-            <Text style={styles.moodLabel}>{mood.label}</Text>
-            {selectedMood === mood.id && (
-              <View style={[styles.selectionIndicator, { backgroundColor: mood.color }]} />
-            )}
+            <Text style={styles.optionText}>{option.text}</Text>
           </TouchableOpacity>
         ))}
-      </View>
+      </ScrollView>
+      <TouchableOpacity 
+        style={styles.scrollArrowRight} 
+        onPress={() => thirdScrollRef.current?.scrollToEnd({ animated: true })}
+      >
+        <MaterialIcons name="chevron-right" size={24} color="#FFF" />
+      </TouchableOpacity>
     </View>
   );
 };
+
+const renderFourthOptions = () => {
+  if (!showFourthOptions || chatState !== CHAT_STATES.FOURTH_QUESTION || !currentFlow?.fourthQuestion) return null;
   
-    const renderFollowUpOptions = () => {
-      if (!showOptions || chatState !== CHAT_STATES.FOLLOW_UP || !selectedMood || !currentFlow) return null;
-      
-      return (
-        <View style={styles.optionsContainer}>
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.optionsScrollContent}
+  return (
+    <View style={styles.optionsContainer}>
+      <TouchableOpacity 
+        style={styles.scrollArrowLeft} 
+        onPress={() => fourthScrollRef.current?.scrollTo({ x: 0, animated: true })}
+      >
+        <MaterialIcons name="chevron-left" size={24} color="#FFF" />
+      </TouchableOpacity>
+      <ScrollView 
+        ref={fourthScrollRef}
+        horizontal 
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.optionsScrollContent}
+      >
+        {currentFlow.fourthQuestion.options.map((option, index) => (
+          <TouchableOpacity
+            key={index}
+            style={styles.optionButton}
+            onPress={() => handleFourthOptionSelect(option)}
           >
-            {currentFlow.initialQuestion.options.map((option, index) => (
-              <TouchableOpacity
-                key={index}
-                style={[
-                  styles.optionButton,
-                  { backgroundColor: '#E31937' }
-                ]}
-                onPress={() => handleOptionSelect(option)}
-              >
-                {option.emoji && <Text style={styles.optionEmoji}>{option.emoji}</Text>}
-                <Text style={styles.optionText}>{option.text}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      );
-    };
-  
-    const renderSecondaryOptions = () => {
-      if (!showSecondaryOptions || chatState !== CHAT_STATES.SECONDARY_QUESTION || !selectedMood || !currentFlow) return null;
-      
-      return (
-        <View style={styles.optionsContainer}>
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.optionsScrollContent}
-          >
-            {currentFlow.secondaryQuestion.options.map((option, index) => (
-              <TouchableOpacity
-                key={index}
-                style={[
-                  styles.optionButton,
-                  { backgroundColor: '#E31937' }
-                ]}
-                onPress={() => handleSecondaryOptionSelect(option)}
-              >
-                <Text style={styles.optionText}>{option.text}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      );
-    };
-  
+            <Text style={styles.optionText}>{option.text}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+      <TouchableOpacity 
+        style={styles.scrollArrowRight} 
+        onPress={() => fourthScrollRef.current?.scrollToEnd({ animated: true })}
+      >
+        <MaterialIcons name="chevron-right" size={24} color="#FFF" />
+      </TouchableOpacity>
+    </View>
+  );
+};
     const renderInputField = () => {
-      if (chatState === CHAT_STATES.EMPLOYEE_ID) {
-        return (
-          <TextInput
-            style={[
-              styles.input,
-              styles.employeeIdInput
-            ]}
-            value={employeeId}
-            onChangeText={setEmployeeId}
-            placeholder='Enter Employee ID'
-            placeholderTextColor="#999"
-            onSubmitEditing={() => !isSendDisabled() && handleSend()}
-            returnKeyType="send"
-          />
-        );
-      } else if (chatState === CHAT_STATES.ELABORATION) {
+      if (chatState === CHAT_STATES.ELABORATION) {
         return (
           <TextInput
             style={styles.input}
@@ -749,9 +997,11 @@ const showFinalMessages = () => {
             {renderMoodSelection()}
             {renderFollowUpOptions()}
             {renderSecondaryOptions()}
+            {renderThirdOptions()}
+            {renderFourthOptions()}
           </ScrollView>
 
-          {(chatState === CHAT_STATES.EMPLOYEE_ID || chatState === CHAT_STATES.ELABORATION) && (
+          {(chatState === CHAT_STATES.ELABORATION) && (
             <View style={styles.inputContainer}>
               {renderInputField()}
               <TouchableOpacity 
@@ -1013,6 +1263,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 3,
+    position: 'relative',
   },
   optionsScrollContent: {
     paddingHorizontal: 8,
@@ -1083,6 +1334,45 @@ mlogo: {
 mahendra: {
   width: 120,
   height: 40,
+},
+scrollArrowLeft: {
+  position: 'absolute',
+  left: 0,
+  top: 0,
+  bottom: 0,
+  width: 30,
+  justifyContent: 'center',
+  alignItems: 'center',
+  zIndex: 1,
+  backgroundColor: 'rgba(227, 25, 55, 0.7)',
+  borderTopLeftRadius: 16,
+  borderBottomLeftRadius: 16,
+},
+scrollArrowRight: {
+  position: 'absolute',
+  right: 0,
+  top: 0,
+  bottom: 0,
+  width: 30,
+  justifyContent: 'center',
+  alignItems: 'center',
+  zIndex: 1,
+  backgroundColor: 'rgba(227, 25, 55, 0.7)',
+  borderTopRightRadius: 16,
+  borderBottomRightRadius: 16,
+},
+optionsContainer: {
+  backgroundColor: '#FFF',
+  borderRadius: 16,
+  marginHorizontal: 16,
+  marginBottom: 12,
+  padding: 12,
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.1,
+  shadowRadius: 8,
+  elevation: 3,
+  position: 'relative',
 },
 });
 

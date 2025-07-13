@@ -87,8 +87,8 @@ const LoginScreen = () => {
   const checkEmployeeExists = async (empId) => {
     console.log('🔍 Checking employee with ID:', empId);
     try {
-      // First, check if the ID is in the expected format
-      if (!/^EMP0(0[1-9]|10)$/.test(empId)) {
+      // Validate ID format (EMP followed by numbers)
+      if (!/^EMP\d+$/.test(empId)) {
         console.log('❌ Invalid employee ID format:', empId);
         return false;
       }
@@ -139,11 +139,11 @@ const LoginScreen = () => {
         return;
       }
 
-      // Validate ID format (EMP001-EMP010)
-      if (!/^EMP0(0[1-9]|10)$/.test(empId)) {
+      // Validate ID format (EMP followed by numbers)
+      if (!/^EMP\d+$/.test(empId)) {
         console.log('❌ Invalid employee ID format:', empId);
       
-        showAlert('Error', 'Invalid employee ID. Please enter a valid ID (EMP001-EMP010)');
+        showAlert('Error', 'Invalid employee ID format. Please enter a valid ID (e.g., EMP123)');
         return;
       }
 
