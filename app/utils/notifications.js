@@ -2,6 +2,8 @@ import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 
+const isWeb = Platform.OS === 'web';
+
 // Configure notification handler
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -13,6 +15,12 @@ Notifications.setNotificationHandler({
 
 // Request permissions for notifications
 export async function registerForPushNotificationsAsync() {
+  // Skip on web platform
+  if (isWeb) {
+    console.log('Push notifications are not supported on web');
+    return null;
+  }
+
   let token;
   
   if (Platform.OS === 'android') {
@@ -35,7 +43,7 @@ export async function registerForPushNotificationsAsync() {
     
     if (finalStatus !== 'granted') {
       console.log('Failed to get push token for push notification!');
-      return;
+      return null;
     }
     
     token = (await Notifications.getExpoPushTokenAsync()).data;
@@ -48,46 +56,67 @@ export async function registerForPushNotificationsAsync() {
 
 // Schedule a notification for feedback reminder
 export async function scheduleFeedbackReminder() {
-  // Cancel any existing notifications
-  await Notifications.cancelAllScheduledNotificationsAsync();
-  
-  // Set the notification to trigger between 5-6 days from now
-  const daysToAdd = 5 + Math.floor(Math.random() * 2); // 5 or 6 days
-  const trigger = new Date();
-  trigger.setDate(trigger.getDate() + daysToAdd);
-  
-  // Schedule the notification
-  await Notifications.scheduleNotificationAsync({
-    content: {
-      title: "We'd love your feedback! 💬",
-      body: "How has your experience been with our app? Tap to share your thoughts!",
-      data: { type: 'feedback-reminder' },
-    },
-    trigger: {
-      date: trigger,
-    },
-  });
-  
-  console.log(`Scheduled feedback reminder for ${daysToAdd} days from now.`);
+  // Skip on web platform
+  if (isWeb) {
+    console.log('Skipping feedback reminder on web');
+    return;
+  }
+
+  try {
+    // Cancel any existing notifications
+    await Notifications.cancelAllScheduledNotificationsAsync();
+    
+    // Set the notification to trigger between 5-6 days from now
+    const daysToAdd = 5 + Math.floor(Math.random() * 2); // 5 or 6 days
+    const trigger = new Date();
+    trigger.setDate(trigger.getDate() + daysToAdd);
+    
+    // Schedule the notification
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: "We'd love your feedback! 💬",
+        body: "How has your experience been with our app? Tap to share your thoughts!",
+        data: { type: 'feedback-reminder' },
+      },
+      trigger: {
+        date: trigger,
+      },
+    });
+    
+    console.log(`Scheduled feedback reminder for ${daysToAdd} days from now.`);
+  } catch (error) {
+    console.warn('Failed to schedule feedback reminder:', error);
+  }
 }
 
 // Setup notification listeners
 export function setupNotificationListeners(navigation) {
-  // This listener is called when a notification is received while the app is in the foreground
-  const subscription = Notifications.addNotificationReceivedListener(notification => {
-    console.log('Notification received:', notification);
-  });
+  // Skip on web platform
+  if (isWeb) {
+    console.log('Skipping notification listeners on web');
+    return () => {}; // Return empty cleanup function
+  }
 
-  // This listener is called when a user taps on a notification
-  const responseSubscription = Notifications.addNotificationResponseReceivedListener(response => {
-    console.log('Notification response received:', response);
-    // You can navigate to a feedback screen here if needed
-    // navigation.navigate('Feedback');
-  });
+  try {
+    // This listener is called when a notification is received while the app is in the foreground
+    const subscription = Notifications.addNotificationReceivedListener(notification => {
+      console.log('Notification received:', notification);
+    });
 
-  // Return the subscription so it can be cleaned up
-  return () => {
-    subscription.remove();
-    responseSubscription.remove();
-  };
+    // This listener is called when a user taps on a notification
+    const responseSubscription = Notifications.addNotificationResponseReceivedListener(response => {
+      console.log('Notification response received:', response);
+      // You can navigate to a feedback screen here if needed
+      // navigation.navigate('Feedback');
+    });
+
+    // Return the subscription so it can be cleaned up
+    return () => {
+      subscription?.remove();
+      responseSubscription?.remove();
+    };
+  } catch (error) {
+    console.warn('Failed to set up notification listeners:', error);
+    return () => {}; // Return empty cleanup function
+  }
 }

@@ -1,18 +1,17 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import { Platform, View as RNView, Alert } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
-import { useRouter } from 'expo-router';
 import * as Print from 'expo-print';
-import { captureRef } from 'react-native-view-shot';
+import { useRouter } from 'expo-router';
+import * as Sharing from 'expo-sharing';
 import { addDoc, collection, deleteDoc, doc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, Dimensions, Platform } from 'react-native';
+import { captureRef } from 'react-native-view-shot';
 
 import {
   ActivityIndicator,
   Button,
-  Dimensions,
   FlatList,
   Modal,
   SafeAreaView,
@@ -27,8 +26,6 @@ import { PieChart } from 'react-native-chart-kit';
 import { db } from '../config/firebase';
 import ChartCard from './ChartCard';
 const createStyles = (windowWidth) => StyleSheet.create({
-  // ... (keep all your existing styles)
-  // Add these new styles:
   container: {
     flex: 1,
     flexDirection: 'row',
@@ -141,27 +138,19 @@ const createStyles = (windowWidth) => StyleSheet.create({
   cardValue: {
     fontSize: 24,
     fontWeight: 'bold',
+    color: '#2c3e50',
   },
   chartContainer: {
     backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 10,
-    marginVertical: 10,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
-  },
-  chart: {
-    marginVertical: 8,
-    borderRadius: 8,
+    borderRadius: 10,
+    padding: windowWidth < 500 ? 8 : 15,
+    marginBottom: windowWidth < 500 ? 10 : 20,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    maxWidth: '100%',
   },
   sectionTitle: {
     fontSize: 18,
@@ -176,18 +165,13 @@ const createStyles = (windowWidth) => StyleSheet.create({
   adminHeader: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    padding: 10,
-    flexWrap: 'wrap',
-    gap: 10,
+    alignItems: 'center',
+    marginBottom: 20,
   },
   addButton: {
     backgroundColor: '#E31937',
-    padding: 12,
+    padding: 10,
     borderRadius: 5,
-    alignItems: 'center',
-    marginBottom: 15,
-    elevation: 2,
-    marginHorizontal: 5,
   },
   addButtonText: {
     color: '#fff',
@@ -197,91 +181,65 @@ const createStyles = (windowWidth) => StyleSheet.create({
     flex: 1,
   },
   adminTable: {
-    width: '100%',
+    minWidth: 800, // Set a minimum width that fits all columns
     backgroundColor: '#fff',
-    borderRadius: 10,
+    borderRadius: 5,
     overflow: 'hidden',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    elevation: 2,
   },
   tableHeader: {
     flexDirection: 'row',
-    backgroundColor: '#2c3e50',
-    paddingVertical: 15,
-    borderTopLeftRadius: 10,
-    borderTopRightRadius: 10,
+    backgroundColor: '#f0f0f0',
+    paddingVertical: 12,
   },
   tableHeaderCell: {
-    fontWeight: '600',
+    fontWeight: 'bold',
     textAlign: 'center',
-    color: '#fff',
-    paddingHorizontal: 12,
-    fontSize: 14,
+    color: '#333',
+    paddingHorizontal: 8,
   },
   tableRow: {
     flexDirection: 'row',
     borderBottomWidth: 1,
-    borderColor: '#f0f0f0',
-    paddingVertical: 14,
+    borderColor: '#eee',
+    paddingVertical: 12,
     alignItems: 'center',
-    backgroundColor: '#fff',
-    transition: 'all 0.2s ease',
-  },
-  tableRowHover: {
-    backgroundColor: '#f8f9fa',
-    transform: [{ scale: 1.005 }],
   },
   tableCell: {
     textAlign: 'center',
-    color: '#333',
-    paddingHorizontal: 12,
-    fontSize: 13,
+    color: '#444',
+    paddingHorizontal: 8,
   },
-  // Specific cell widths with better distribution
+  // Specific cell widths
   usernameCell: {
-    width: 160,
+    width: 150,
   },
   emailCell: {
-    width: 240,
+    width: 200,
   },
   passwordCell: {
-    width: 140,
+    width: 150,
   },
   idCell: {
-    width: 80,
+    width: 100,
   },
   nameCell: {
-    width: 180,
+    width: 200,
   },
   deptCell: {
-    width: 160,
+    width: 150,
   },
   roleCell: {
-    width: 140,
+    width: 150,
   },
   actionCell: {
-    width: 140,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 6,
+    width: 100,
   },
   actionButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 5,
-    minWidth: 60,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 4,
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    borderRadius: 4,
+    marginHorizontal: 2,
   },
   editButton: {
     backgroundColor: '#FFA000',
@@ -291,65 +249,16 @@ const createStyles = (windowWidth) => StyleSheet.create({
   },
   actionButtonText: {
     color: '#fff',
-    fontWeight: '500',
+    fontWeight: 'bold',
     fontSize: 12,
-  },
-  statusBadge: {
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 10,
-    fontSize: 12,
-    fontWeight: '500',
-    textAlign: 'center',
-    minWidth: 80,
-  },
-  activeStatus: {
-    backgroundColor: '#e3f7e8',
-    color: '#1a7f3b',
-  },
-  inactiveStatus: {
-    backgroundColor: '#ffebee',
-    color: '#c62828',
   },
   noDataRow: {
-    padding: 40,
+    padding: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    marginTop: 10,
   },
   noDataText: {
-    color: '#666',
-    fontSize: 16,
-    marginTop: 10,
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-  noDataIcon: {
-    fontSize: 48,
-    color: '#bdbdbd',
-    marginBottom: 10,
-  },
-  tableContainer: {
-    borderRadius: 10,
-    overflow: 'hidden',
-    marginBottom: 20,
-  },
-  tableScrollView: {
-    maxHeight: 500,
-  },
-  loadingContainer: {
-    padding: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 10,
-  },
-  loadingText: {
-    marginTop: 10,
-    color: '#666',
-    fontSize: 14,
+    color: '#888',
   },
   modalContainer: {
     flex: 1,
@@ -407,25 +316,18 @@ const createStyles = (windowWidth) => StyleSheet.create({
     marginTop: 20,
     backgroundColor: '#fff',
     borderRadius: 5,
-    overflow: 'scroll',
-    elevation: 2,
-    width: '100%',
+    overflow: 'hidden',
+    elevation: 2
   },
   moodTableHeader: {
     flexDirection: 'row',
     backgroundColor: '#f0f0f0',
-    paddingVertical: 12,
-    minWidth: 900, // Ensure minimum width to prevent squeezing
+    paddingVertical: 12
   },
   moodTableCell: {
     padding: 10,
-    textAlign: 'left',
-    fontSize: 12,
-    flexShrink: 0, // Prevent shrinking
-    flexGrow: 0, // Prevent growing
-    overflow: 'visible',
-    minHeight: 40, // Ensure minimum height
-    justifyContent: 'center', // Center content vertically
+    textAlign: 'center',
+    color: '#444'
   },
   moodHeaderCell: {
     fontWeight: 'bold',
@@ -437,30 +339,23 @@ const createStyles = (windowWidth) => StyleSheet.create({
     flexDirection: 'row',
     borderBottomWidth: 1,
     borderColor: '#eee',
-    paddingVertical: 8,
-    minWidth: 900, // Match header width
-    alignItems: 'center', // Center items vertically
+    paddingVertical: 10
   },
-  // Cell widths for mood table - using flex instead of fixed widths for better responsiveness
+  // Cell widths for mood table
   moodNameCell: {
-    flex: 1.5,
-    minWidth: 120,
+    width: 150
   },
   moodDepartmentCell: {
-    flex: 1.5,
-    minWidth: 120,
+    width: 150
   },
   moodMoodCell: {
-    flex: 1,
-    minWidth: 80,
+    width: 100
   },
   moodElaborationCell: {
-    flex: 2,
-    minWidth: 150,
+    width: 200
   },
   moodDateCell: {
-    flex: 1,
-    minWidth: 100,
+    width: 150
   },
   searchBar: {
     height: 40,
@@ -470,310 +365,6 @@ const createStyles = (windowWidth) => StyleSheet.create({
     paddingHorizontal: 15,
     marginBottom: 15,
     backgroundColor: '#fff',
-  },
-  searchContainer: {
-    marginBottom: 16,
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  searchInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    marginBottom: 12,
-    height: 44,
-  },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    height: '100%',
-    color: '#333',
-    fontSize: 15,
-  },
-  sidebarHeader: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e9ecef',
-  },
-  cellText: {
-    color: '#212529',
-    fontSize: 13,
-  },
-  moodBadge: {
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-  },
-  moodText: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  feedbackText: {
-    fontSize: 13,
-    lineHeight: 18,
-    color: '#212529',
-  },
-  tagsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: 6,
-    gap: 4,
-  },
-  tag: {
-    backgroundColor: '#e9ecef',
-    borderRadius: 4,
-    paddingVertical: 2,
-    paddingHorizontal: 6,
-  },
-  tagText: {
-    fontSize: 11,
-    color: '#495057',
-  },
-  infoRow: {
-    flexDirection: 'row',
-    marginBottom: 4,
-  },
-  infoLabel: {
-    fontSize: 11,
-    color: '#6c757d',
-    marginRight: 4,
-    fontWeight: '500',
-  },
-  infoValue: {
-    fontSize: 12,
-    color: '#212529',
-    flex: 1,
-  },
-  menuCategory: {
-    color: '#7f8c8d',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    fontSize: 12,
-    fontWeight: 'bold',
-    marginTop: 10,
-  },
-  filterRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'flex-start',
-    alignItems: 'center',
-    marginBottom: 8,
-    gap: 8,
-  },
-  filterItem: {
-    minWidth: 180,
-    marginBottom: 8,
-  },
-  dateFilterButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#E31937',
-    borderRadius: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    marginLeft: 'auto',
-  },
-  dateFilterText: {
-    marginLeft: 6,
-    color: '#E31937',
-    fontSize: 14,
-  },
-  exportButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E31937',
-    borderRadius: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    marginLeft: 8,
-  },
-  exportButtonText: {
-    color: '#fff',
-    marginLeft: 6,
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  datePickerContainer: {
-    marginTop: 12,
-    padding: 12,
-    backgroundColor: '#f9f9f9',
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#eee',
-  },
-  dateInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  dateInput: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 4,
-    padding: 8,
-    minWidth: 120,
-    fontSize: 14,
-  },
-  dateLabel: {
-    fontSize: 14,
-    color: '#666',
-  },
-  clearDateButton: {
-    marginLeft: 'auto',
-    padding: 6,
-  },
-  clearDateText: {
-    color: '#E31937',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  feedbackContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 6,
-    padding: 12,
-    elevation: 2,
-  },
-  feedbackHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  feedbackTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  resultCount: {
-    fontSize: 14,
-    color: '#666',
-  },
-  tableHeader: {
-    flexDirection: 'row',
-    backgroundColor: '#f8f9fa',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e9ecef',
-  },
-  headerCell: {
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderRightWidth: 1,
-    borderRightColor: '#e9ecef',
-    backgroundColor: '#f8f9fa',
-  },
-  headerCellContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  headerCellText: {
-    fontWeight: '600',
-    color: '#495057',
-    fontSize: 13,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  tableHeaderCell: {
-    fontWeight: 'bold',
-    textAlign: 'center',
-    color: '#333',
-    paddingHorizontal: 8,
-  },
-  tableRow: {
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e9ecef',
-  },
-  evenRow: {
-    backgroundColor: '#fff',
-  },
-  oddRow: {
-    backgroundColor: '#f8f9fa',
-  },
-  cell: {
-    padding: 12,
-    justifyContent: 'center',
-    borderRightWidth: 1,
-    borderRightColor: '#e9ecef',
-  },
-  cellText: {
-    fontSize: 13,
-    color: '#333',
-  },
-  loadingContainer: {
-    padding: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  loadingText: {
-    marginTop: 8,
-    color: '#6c757d',
-    fontSize: 13,
-  },
-  noDataContainer: {
-    padding: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f8f9fa',
-    borderRadius: 6,
-    margin: 16,
-  },
-  noDataText: {
-    marginTop: 12,
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#6c757d',
-    textAlign: 'center',
-  },
-  noDataSubtext: {
-    marginTop: 4,
-    fontSize: 13,
-    color: '#adb5bd',
-    textAlign: 'center',
-  },
-  paginationContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#e9ecef',
-    backgroundColor: '#f8f9fa',
-  },
-  paginationText: {
-    fontSize: 13,
-    color: '#6c757d',
-  },
-  paginationControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  paginationButton: {
-    padding: 6,
-    marginHorizontal: 4,
-    borderRadius: 4,
-  },
-  paginationButtonText: {
-    fontSize: 14,
-    color: '#E31937',
-    fontWeight: '500',
-  },
-  paginationButtonDisabled: {
-    opacity: 0.5,
   },
 });
 
@@ -976,7 +567,7 @@ const AdminPanel = () => {
       case 'employeeData':
         return <EmployeeList />;
       case 'charts':
-        return <DepartmentCharts />;
+        return <DepartmentCharts windowDimensions={windowDimensions} />;
       default:
         return (
           <View style={styles.content}>
@@ -1063,7 +654,8 @@ const AdminPanel = () => {
     );
 };
 
-const DepartmentCharts = () => {
+const DepartmentCharts = ({ windowDimensions }) => {
+  const isMobile = windowDimensions && windowDimensions.width < 600;
   const [departments, setDepartments] = useState([]);
   const [states, setStates] = useState([]);
   const [roles, setRoles] = useState([]);
@@ -1080,20 +672,10 @@ const DepartmentCharts = () => {
   const [filteredEmployeeMoodDetails, setFilteredEmployeeMoodDetails] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
-  const [windowWidth, setWindowWidth] = useState(Dimensions.get('window').width);
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: 'timestamp', direction: 'desc' });
-
-  useEffect(() => {
-    const updateDimensions = ({ window }) => {
-      setWindowWidth(window.width);
-    };
-
-    const dimensionListener = Dimensions.addEventListener('change', updateDimensions);
-    return () => dimensionListener.remove();
-  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -1101,6 +683,7 @@ const DepartmentCharts = () => {
         // Get all employees to extract unique departments, states, and roles
         const empSnap = await getDocs(collection(db, 'employees'));
         const empData = empSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        console.log('Fetched employees:', empData);
         
         // Extract unique departments
         const depts = new Set();
@@ -1282,6 +865,7 @@ const DepartmentCharts = () => {
 
         // Get mood data for these employees from chatResponses
         const moodSnap = await getDocs(collection(db, 'chatResponses'));
+        console.log('Fetched chatResponses:', moodSnap.docs.map(doc => doc.data()));
         const moodCounts = {};
         const stateMoodCounts = {};
         const roleMoodCounts = {};
@@ -1289,7 +873,12 @@ const DepartmentCharts = () => {
 
         moodSnap.docs.forEach(doc => {
           const moodData = doc.data();
-          const matchingEmployee = empData.find(emp => emp.empId === moodData.employeeId);
+          const matchingEmployee = empData.find(emp => 
+            String(emp.empId).trim() === String(moodData.employeeId).trim()
+          );
+          if (!matchingEmployee) {
+            console.log('No matching employee for chatResponse:', moodData.employeeId, moodData);
+          }
           
           // Convert Firestore timestamp to JS Date
           const moodTimestamp = moodData.timestamp?.toDate ? moodData.timestamp.toDate() : null;
@@ -1390,6 +979,9 @@ const DepartmentCharts = () => {
         setStateMoodData(stateChartData);
         setRoleMoodData(roleChartData);
         setEmployeeMoodDetails(filteredMoodDetails);
+        console.log('Department mood data:', deptChartData);
+        console.log('State mood data:', stateChartData);
+        console.log('Role mood data:', roleChartData);
       } catch (error) {
         console.error('Error fetching department data:', error);
       } finally {
@@ -1437,7 +1029,7 @@ const DepartmentCharts = () => {
     }
   };
 
-  const chartWidth = Math.min(windowWidth - 40, 350);
+  const chartWidth = Math.max(Math.min(windowDimensions.width - 40, 350), 220);
   const chartHeight = 220;
 
   // Create refs for charts
@@ -1810,18 +1402,39 @@ const DepartmentCharts = () => {
 
   return (
     <View style={styles.content}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+      <View
+        style={{
+          flexDirection: isMobile ? 'column' : 'row',
+          justifyContent: isMobile ? 'flex-start' : 'space-between',
+          alignItems: isMobile ? 'flex-start' : 'flex-start',
+          marginBottom: 10,
+          width: '100%',
+        }}
+      >
         <Text style={styles.heading}>Employee Analytics</Text>
-        <View style={{ flexDirection: 'row', gap: 10 }}>
-          <TouchableOpacity 
-            style={[styles.addButton, { backgroundColor: '#2c3e50', padding: 8, margin: 0 }]}
+        <View
+          style={{
+            flexDirection: 'column',
+            alignItems: isMobile ? 'flex-start' : 'flex-end',
+            marginTop: isMobile ? 10 : 0,
+            width: isMobile ? '100%' : undefined,
+          }}
+        >
+          <TouchableOpacity
+            style={[
+              styles.addButton,
+              { backgroundColor: '#2c3e50', padding: 8, marginBottom: 8 }
+            ]}
             onPress={exportToPDF}
           >
             <Text style={styles.addButtonText}>Export Charts (PDF)</Text>
           </TouchableOpacity>
           {showEmployeeDetails && (
-            <TouchableOpacity 
-              style={[styles.addButton, { backgroundColor: '#27ae60', padding: 8, margin: 0 }]}
+            <TouchableOpacity
+              style={[
+                styles.addButton,
+                { backgroundColor: '#27ae60', padding: 8 }
+              ]}
               onPress={exportTableToCSV}
             >
               <Text style={styles.addButtonText}>Export Table (CSV)</Text>
@@ -1830,7 +1443,6 @@ const DepartmentCharts = () => {
         </View>
       </View>
       
-      {/* Filter Controls */}
       <View style={styles.chartControls} className="chartControls">
         <View style={{ flex: 1, marginRight: 10 }}>
           <Text style={{ marginBottom: 5 }}>Department:</Text>
@@ -1905,9 +1517,7 @@ const DepartmentCharts = () => {
         <ActivityIndicator size="large" />
       ) : (
         <>
-          {/* Charts Row */}
-          <View style={{ flexDirection: windowWidth > 768 ? 'row' : 'column', justifyContent: 'space-between' }}>
-            {/* Department Chart */}
+          <View style={{ flexDirection: windowDimensions.width > 768 ? 'row' : 'column', justifyContent: 'space-between' }}>
             <View ref={departmentChartRef} collapsable={false} style={styles.chartContainer}>
               <Text style={styles.sectionTitle}>
                 {selectedDepartment === 'All' ? 'All Departments' : selectedDepartment}
@@ -1936,9 +1546,8 @@ const DepartmentCharts = () => {
               )}
             </View>
 
-            {/* State Chart */}
             {selectedState !== 'All' && (
-              <View style={[styles.chartContainer, { flex: 1, marginLeft: windowWidth > 768 ? 10 : 0 }]}>
+              <View style={[styles.chartContainer, { flex: 1, marginLeft: windowDimensions.width > 768 ? 10 : 0 }]}>
                 <Text style={styles.sectionTitle}>
                   {selectedState} Mood Distribution
                 </Text>
@@ -1969,9 +1578,8 @@ const DepartmentCharts = () => {
               </View>
             )}
 
-            {/* Role Chart */}
             {selectedRole !== 'All' && (
-              <View style={[styles.chartContainer, { flex: 1, marginLeft: windowWidth > 768 ? 10 : 0, marginTop: windowWidth > 768 ? 0 : 15 }]}>
+              <View style={[styles.chartContainer, { flex: 1, marginLeft: windowDimensions.width > 768 ? 10 : 0, marginTop: windowDimensions.width > 768 ? 0 : 15 }]}>
                 <Text style={styles.sectionTitle}>
                   {selectedRole} Mood Distribution
                 </Text>
@@ -2031,7 +1639,6 @@ const DepartmentCharts = () => {
                 
                 <ScrollView horizontal showsHorizontalScrollIndicator={true}>
                   <View>
-                    {/* Table Header */}
                     <View style={styles.tableHeader}>
                       <View style={[styles.headerCell, { width: 120 }]}>
                         <Text style={styles.headerCellText}>Employee</Text>
@@ -2053,7 +1660,6 @@ const DepartmentCharts = () => {
                       </View>
                     </View>
                     
-                    {/* Table Body */}
                     {loading ? (
                       <View style={styles.loadingContainer}>
                         <ActivityIndicator size="large" color="#E31937" />
@@ -2069,7 +1675,6 @@ const DepartmentCharts = () => {
                             { height: 'auto' }
                           ]}
                         >
-                          {/* Employee Name */}
                           <View style={[styles.cell, { width: 120 }]}>
                             <Text style={[styles.cellText, { fontWeight: '500' }]} numberOfLines={1}>
                               {item.name || 'Unknown'}
@@ -2079,14 +1684,12 @@ const DepartmentCharts = () => {
                             </Text>
                           </View>
                           
-                          {/* Department */}
                           <View style={[styles.cell, { width: 120 }]}>
                             <Text style={styles.cellText} numberOfLines={1}>
                               {item.department || 'N/A'}
                             </Text>
                           </View>
                           
-                          {/* Mood */}
                           <View style={[styles.cell, { width: 100, alignItems: 'center' }]}>
                             <View 
                               style={[
@@ -2106,7 +1709,6 @@ const DepartmentCharts = () => {
                             </View>
                           </View>
                           
-                          {/* Comments */}
                           <View style={[styles.cell, { width: 200, padding: 8 }]}>
                             <Text 
                               style={[
@@ -2120,14 +1722,12 @@ const DepartmentCharts = () => {
                             </Text>
                           </View>
                           
-                          {/* Time */}
                           <View style={[styles.cell, { width: 100, justifyContent: 'center' }]}>
                             <Text style={styles.cellText}>
                               {item.time || '--:--'}
                             </Text>
                           </View>
                           
-                          {/* Date */}
                           <View style={[styles.cell, { width: 100, justifyContent: 'center' }]}>
                             <Text style={styles.cellText}>
                               {item.date || '--/--/----'}
@@ -2153,9 +1753,7 @@ const DepartmentCharts = () => {
   );
 };
 
-// ... (keep your existing AdminList and EmployeeList components)
 const AdminList = () => {
-  // ... (keep all your existing state and functions)
   const [admins, setAdmins] = useState([]);
   const [filteredAdmins, setFilteredAdmins] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -2304,7 +1902,6 @@ const AdminList = () => {
 
   return (
     <View style={styles.adminProfileContainer}>
-      {/* Add Admin and Export Buttons */}
       <View style={[styles.adminHeader, {justifyContent: 'space-between'}]}>
         <TouchableOpacity 
           style={styles.addButton}
@@ -2320,10 +1917,8 @@ const AdminList = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Admin Profile Heading */}
       <Text style={styles.sectionTitle}>Admin Profile</Text>
 
-      {/* Search Bar */}
       <TextInput
         style={styles.searchBar}
         placeholder="Search by username or email..."
@@ -2331,11 +1926,8 @@ const AdminList = () => {
         onChangeText={setSearchQuery}
       />
 
-      {/* Horizontal Scroll Container - CHANGED TO ScrollView */}
       <ScrollView horizontal showsHorizontalScrollIndicator={true}>
-        {/* Admin Table */}
         <View style={styles.adminTable}>
-          {/* Table Header */}
           <View style={styles.tableHeader}>
             <Text style={[styles.tableHeaderCell, styles.usernameCell]}>Username</Text>
             <Text style={[styles.tableHeaderCell, styles.emailCell]}>Email</Text>
@@ -2344,7 +1936,6 @@ const AdminList = () => {
             <Text style={[styles.tableHeaderCell, styles.actionCell]}>DELETE</Text>
           </View>
 
-          {/* Table Rows */}
           {filteredAdmins.length === 0 ? (
             <View style={styles.noDataRow}>
               <Text style={styles.noDataText}>No admins found</Text>
@@ -2381,7 +1972,6 @@ const AdminList = () => {
         </View>
       </ScrollView>
 
-      {/* ... (keep all your modal code) */}
       <Modal
               visible={editModalVisible}
               animationType="slide"
@@ -2419,7 +2009,6 @@ const AdminList = () => {
               </View>
             </Modal>
       
-            {/* Add Admin Modal */}
             <Modal
               visible={addModalVisible}
               animationType="slide"
@@ -2635,7 +2224,6 @@ const EmployeeList = () => {
 
   return (
     <View style={styles.adminProfileContainer}>
-      {/* Add Employee and Export Buttons */}
       <View style={[styles.adminHeader, {justifyContent: 'space-between'}]}>
         <TouchableOpacity 
           style={styles.addButton}
@@ -2651,10 +2239,8 @@ const EmployeeList = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Employee Data Heading */}
       <Text style={styles.sectionTitle}>Employee Data</Text>
 
-      {/* Search Bar */}
       <TextInput
         style={styles.searchBar}
         placeholder="Search by ID, name, department, or role..."
@@ -2662,11 +2248,8 @@ const EmployeeList = () => {
         onChangeText={setSearchQuery}
       />
 
-      {/* Horizontal Scroll Container */}
       <ScrollView horizontal showsHorizontalScrollIndicator={true}>
-        {/* Employee Table */}
         <View style={styles.adminTable}>
-          {/* Table Header */}
           <View style={[styles.tableHeader, {minWidth: 1000}]}>
             <Text style={[styles.tableHeaderCell, {width: 80}]}>ID</Text>
             <Text style={[styles.tableHeaderCell, {width: 150}]}>Name</Text>
@@ -2678,7 +2261,6 @@ const EmployeeList = () => {
             <Text style={[styles.tableHeaderCell, {width: 100}]}>DELETE</Text>
           </View>
 
-          {/* Table Rows */}
           {filteredEmployees.length === 0 ? (
             <View style={styles.noDataRow}>
               <Text style={styles.noDataText}>No employees found</Text>
@@ -2718,7 +2300,6 @@ const EmployeeList = () => {
         </View>
       </ScrollView>
 
-      {/* Edit Employee Modal */}
       <Modal
         visible={editModalVisible}
         animationType="slide"
@@ -2760,7 +2341,6 @@ const EmployeeList = () => {
         </View>
       </Modal>
       
-      {/* Add Employee Modal */}
       <Modal
         visible={addModalVisible}
         animationType="slide"

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -20,7 +20,6 @@ import { addDoc, collection, doc, getDoc, serverTimestamp } from 'firebase/fires
 import { adminLogin, db } from '../config/firebase';
 
 // Notification imports
-import * as Notifications from 'expo-notifications';
 import { registerForPushNotificationsAsync, scheduleFeedbackReminder, setupNotificationListeners } from './utils/notifications';
 
 // Import LogBox to ignore specific warnings

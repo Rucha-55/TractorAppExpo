@@ -1,12 +1,15 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import { useLocalSearchParams } from 'expo-router';
-import { addDoc, collection, doc, getDoc, increment, setDoc, serverTimestamp } from 'firebase/firestore';
+import * as Notifications from 'expo-notifications';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { addDoc, collection, doc, getDoc, getDocs, increment, orderBy, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
 import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
   Dimensions,
   Image,
+  Modal,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -16,6 +19,7 @@ import {
   View
 } from 'react-native';
 import { db } from '../config/firebase';
+import mdojoFullFlow from './mdojo_full_flow.json';
 
 const { width, height } = Dimensions.get('window');
 
@@ -36,237 +40,34 @@ const MOODS = [
   { id: 'mad', label: 'Mad 😠!', emoji: '😠', color: '#E31937' }
 ];
 
-const GLAD_FLOW = {
-  initialQuestion: {
-    messages: [
-      "Hi, That's great to hear that you are glad! Ride that wave as long as you can...Let's find what made you happy..😊",
-      "https://media1.tenor.com/images/4f58221267ae80aae8458a4f6218da7e/tenor.gif?itemid=3555006",
-      "What's making you feel good?"
-    ],
-    options: [
-      { text: 'Sociable colleagues', emoji: '👥', value: 'Sociable colleagues' },
-      { text: 'Good Boss', emoji: '👔', value: 'Good Boss' },
-      { text: 'Meaningful Work', emoji: '💼', value: 'Meaningful Work' },
-      { text: 'Work Environment', emoji: '🏢', value: 'Work Environment' },
-      { text: 'Work Culture', emoji: '🌱', value: 'Work Culture' },
-      { text: 'Work Life Balance', emoji: '⚖️', value: 'Work Life Balance' },
-      
-      { text: 'Workplace Opportunities', emoji: '🎯', value: 'Workplace Opportunities' }
-    ],
-     gifs: {
-      'Sociable colleagues': 'https://media.giphy.com/media/3o85xpO8Od5wPPVUYg/giphy.gif',
-      'Good Boss': 'https://pa1.narvii.com/5827/f74b44ae651bfe3cad6cbf2d658490c336af6a59_hq.gif',
-      'Meaningful Work': 'https://www.jlwranglerforums.com/forum/attachments/ad1977cb-458f-426f-a703-c360f2664e56-gif.14655/',
-      'Work Environment': 'https://i.pinimg.com/originals/20/e6/a4/20e6a4f470b3a19b80694b13c099d854.gif',
-      'Work Culture': 'https://cdn.dribbble.com/users/759099/screenshots/4322310/comp_2_4.gif',
-      'Work Life Balance': 'https://cdn.dribbble.com/users/1200451/screenshots/6631779/designer_life-2.gif',
-      'Great Career': 'https://media.tenor.com/images/4c6dd7fae4c38a046fc7a28a69f210b2/tenor.gif',
-      'Workplace Opportunities': 'https://media.giphy.com/media/mXnO9IiWWarkI/giphy.gif'
-    }
-  },
-  secondaryQuestion: {
-    question: "What precisely lead to this positive experience? Please describe your choice.",
-    options: [
-      { text: 'Constructive Feedback', value: 'Constructive Feedback' },
-      { text: 'Appreciation', value: 'Appreciation' },
-      { text: 'Good food', value: 'Good food' },
-      { text: 'Experience', value: 'Experience' },
-      
-      { text: 'Opportunities', value: 'Opportunities' }
-    ],
-    gifs: {
-      'Constructive Feedback': 'https://media1.tenor.com/images/2fc2d99986e19d40fc06c740196f0809/tenor.gif',
-      'Appreciation': 'https://media1.tenor.com/images/2fc2d99986e19d40fc06c740196f0809/tenor.gif',
-      'Good food': 'https://66.media.tumblr.com/7919df1cee2938c14501758f1cc22d1f/tumblr_o1pnpm8BL61tq4of6o1_500.gif',
-      'Experience': 'https://media.tenor.com/images/07fa8b8675cdb40bf78ef28d766e2a9b/tenor.gif',
-      'Fulfilling target': 'https://media1.tenor.com/images/018b82b7b47eb994dcb1c77aa0d49357/tenor.gif',
-      'Opportunities': 'https://media1.tenor.com/images/018b82b7b47eb994dcb1c77aa0d49357/tenor.gif'
-    }
-  },
-   thirdQuestion: {
-    question: "How does this positive experience impact your work?",
-    options: [
-      { text: 'Makes me more productive', value: 'More productive' },
-      { text: 'Improves team collaboration', value: 'Better collaboration' },
-      { text: 'Boosts my creativity', value: 'Boosts creativity' },
-      { text: 'Increases my job satisfaction', value: 'Job satisfaction' },
-      { text: 'Motivates me to take on challenges', value: 'More motivated' }
-    ]
-  },
-  
-  fourthQuestion: {
-    question: "Would you like to share this positive experience with others?",
-    options: [
-      { text: 'Yes', value: 'Yes' },
-      { text: 'No, I prefer to keep it private', value: 'Keep private' },
-      
-    ]
-  },
-  finalMessages: [
-    "It was a pleasure talking to you. Glad to hear such positive work experience. Many more to come along😊!!",
-    "Talk to you next time.",
-    "Thank you have a nice day. 😊"
-  ]
-};
+export async function scheduleFeedbackReminder() {
+  if (Platform.OS === 'ios' || Platform.OS === 'android') {
+    // Cancel any existing notifications
+    await Notifications.cancelAllScheduledNotificationsAsync();
 
-const SAD_FLOW = {
-  initialQuestion: {
-    messages: [
-      "Hi, it looks like you are having a rough day..😔",
-      "https://media1.tenor.com/images/3e35e47384653347a72b0626ed90cfe6/tenor.gif?itemid=9816214",
-      "Which of the following best describes the problem you are facing?"
-    ],
-    options: [
-      { text: 'Unsupportive Manager', value: 'Unsupportive Manager' },
-      { text: 'Work Culture', value: 'Work Culture' },
-      { text: 'Work Policies', value: 'Work Policies' },
-      { text: 'Colleagues', value: 'Colleagues' },
-      { text: 'Unclear role', value: 'Unclear role' },
-      { text: 'Infrastructure', value: 'Infrastructure' },
-      { text: 'Work Life balance', value: 'Work Life balance' }
-    ],
-    gifs: {
-      'Unsupportive Manager': 'https://64.media.tumblr.com/506a8671740f5704db5cd34f6c089bac/tumblr_n73q3tYGOJ1smcbm7o1_500.gif',
-      'Work Culture': 'https://i.pinimg.com/originals/fe/16/95/fe169512003c32ca0deaf8d33d7d6d83.gif',
-      'Work Policies': 'https://media.giphy.com/media/xUPJUKCtjmSxaCIfnO/giphy.gif',
-      'Colleagues': 'https://media1.tenor.com/images/a90c3d2016c34c7b1b9680be689e38a2/tenor.gif?itemid=3390650',
-      'Unclear role': 'https://media.tenor.com/images/a9cb2c1f5dfff33c20c1156d8c8e84f7/tenor.gif',
-      'Infrastructure': 'https://kmtgroup.co.za/wp-content/uploads/2019/08/infra-1.gif',
-      'Work Life balance': 'https://cdn.dribbble.com/users/953331/screenshots/6511780/worklifebalance_dribbble.gif'
-    }
-  },
-  secondaryQuestion: {
-    question: "What specifically about that is bothering you? ",
-    options: [
-      { text: 'Clarity', value: 'Clarity' },
-      { text: 'Work station', value: 'Work station' },
-      { text: 'Had an argument with someone', value: 'Had an argument with someone' },
-      { text: 'Wasn’t able to achieve something', value: 'Wasn’t able to achieve something' },
-      { text: 'feeling Unheard', value: 'feeling Unheard' },
-      { text: 'Ideas undervalued', value: 'Ideas undervalued' },
-      { text: 'less opportunities', value: 'less opportunities' },
-      { text: 'unachievable targets', value: 'unachievable targets' },
-      { text: 'Communication gap', value: 'Communication gap' }
-    ],
-    gifs: {
-      'Clarity': 'https://i.pinimg.com/originals/92/4b/0e/924b0ec02c6521302cb630f476de21d0.gif',
-      'Work station': 'https://media1.tenor.com/images/12932a3301c8355802d458249fd2c6cb/tenor.gif?itemid=11383230',
-      'Had an argument with someone': 'https://media1.tenor.com/images/b68dd33c82af7c133b0b22629e00cdb9/tenor.gif?itemid=14891189',
-      'Wasn’t able to achieve something': 'https://media0.giphy.com/media/3HuJrvIm6jfdkeqPBy/giphy.gif',
-      'feeling Unheard': 'https://media.tenor.com/images/960f4694bdb04d2c709e19673d93a4f0/tenor.gif',
-      'Ideas undervalued': 'https://media.tenor.com/images/59a598e84ce877eb5d0fd287bc0e6570/tenor.gif',
-      'less opportunities': 'https://media.tenor.com/images/59247714f3b114960746cd12e70aa156/tenor.gif',
-      'unachievable targets': 'https://media.giphy.com/media/3owzWl78kny9s2GOvC/giphy.gif',
-      'Communication gap': 'https://media.giphy.com/media/TLJOmAuCvcGGh0xb3c/giphy.gif'
-    }
-  },
-  thirdQuestion: {
-    question: "How long have you been feeling this way?",
-    options: [
-      { text: 'Just today', value: 'One day' },
-      { text: 'A few days', value: 'Few days' },
-      { text: 'About a week', value: 'One week' },
-      { text: 'Several weeks', value: 'Several weeks' },
-      { text: 'Months or longer', value: 'Months+' }
-    ]
-  },
-  
-  fourthQuestion: {
-    question: "What would help improve this situation?",
-    options: [
-      { text: 'More support from management', value: 'More support' },
-      { text: 'Clearer communication', value: 'Better communication' },
-    
-      { text: 'More recognition', value: 'More recognition' },
-      { text: 'Changes in work processes', value: 'Process changes' }
-    ]
-  },
-  finalMessages: [
-    " We understand why you might be feeling this way.",
-    "I will forward your input to my creators and they will get back to you soon.",
-    "Here are some suggestions that may make you feel relaxed: ",
-    "Listening to Music 🎧,Breathing exercises, Chair Yoga, Take a tea/coffee break, talk to a friend/ loved one ",
-    "It was nice talking to you! mDojo is signing Off now.😊"
-  ]
-};
+    // Set the notification to trigger between 5-6 days from now
+    const daysToAdd = 5 + Math.floor(Math.random() * 2); // 5 or 6 days
+    const trigger = new Date();
+    trigger.setDate(trigger.getDate() + daysToAdd);
 
-const MAD_FLOW = {
-  initialQuestion: {
-    messages: [
-      "Hi, I see that you are mad 😠",
-      "https://media.tenor.com/images/204371c3eb3e3cf8f24b954965601c48/tenor.gif",
-      "Can you describe what caused you to feel this way?"
-    ],
-    options: [
-      { text: 'Boss', value: 'Boss' },
-      { text: 'colleague', value: 'colleague' },
-      { text: 'work environment', value: 'work environment' },
-      { text: 'Work policies', value: 'Work policies' },
-      { text: 'Role', value: 'Role' },
-      { text: 'Infrastructure', value: 'Infrastructure' },
-      { text: 'Work life balance', value: 'Work life balance' }
-    ],
-    gifs: {
-      'Boss': 'https://media1.tenor.com/images/4695160bad4b1dba0a866a2f7ff2cd9a/tenor.gif?itemid=18007423',
-      'colleague': 'https://media3.giphy.com/media/3o6fJdlKejPY66AqHK/giphy.gif',
-      'work environment': 'https://media3.giphy.com/media/3ofT5PzgI9FSn8vPaw/giphy.gif',
-      'Work policies': 'https://media.giphy.com/media/xUPJUKCtjmSxaCIfnO/giphy.gif',
-      'Role': 'https://media1.tenor.com/images/c75952b989d9e9f792173a67bb5f81a2/tenor.gif?itemid=14850605',
-      'Infrastructure': 'https://media1.tenor.com/images/00c5e6a4740b604bcbabede92b1cdd6c/tenor.gif?itemid=12615097',
-      'Work life balance': 'https://cdn.dribbble.com/users/953331/screenshots/6511780/worklifebalance_dribbble.gif'
-    }
-  },
-  secondaryQuestion: {
-    question: "What specifically about that is bothering you? ",
-    options: [
-      { text: 'Deadlines', value: 'Deadlines' },
-      { text: 'Work pressure', value: 'Work pressure' },
-      { text: 'personal issues at work', value: 'personal issues at work' },
-      { text: 'hygiene', value: 'hygiene' },
-      { text: 'communication gap', value: 'communication gap' },
-      { text: 'feeling unheard', value: 'feeling unheard' },
-      { text: 'unsolved complaints', value: 'unsolved complaints' }
-    ],
-    gifs: {
-      'Deadlines': 'https://media.giphy.com/media/3owzWl78kny9s2GOvC/giphy.gif',
-      'Work pressure': 'https://i.gifer.com/2A83.gif',
-      'personal issues at work': 'https://media.giphy.com/media/U16OUT29Z6AbNqnqkn/giphy.gif',
-      'hygiene': 'https://66.media.tumblr.com/eb9048d0bf3fcabd61f73d17ba356ff7/tumblr_n9mzlc2Owu1ql5yr7o1_500.gif',
-      'communication gap': 'https://media.giphy.com/media/TLJOmAuCvcGGh0xb3c/giphy.gif',
-      'feeling unheard': 'https://media.tenor.com/images/960f4694bdb04d2c709e19673d93a4f0/tenor.gif',
-      'unsolved complaints': 'https://media1.tenor.com/images/4dc0d395fe7bf0d7bb313a60ad8dd8dd/tenor.gif'
-    }
-  },
-  thirdQuestion: {
-    question: "How intense is this feeling?",
-    options: [
-      { text: 'annoyed', value: 'Mild' },
-      { text: 'Frustrated', value: 'Frustrated' },
-      { text: 'Angry', value: 'Angry' },
-      { text: 'Very angry', value: 'Very angry' },
-      { text: 'Extremely upset', value: 'Extremely upset' }
-    ]
-  },
-  
-  fourthQuestion: {
-    question: "Have you tried resolving this issue from your end? ",
-    options: [
-      { text: 'Yes, talked to the person involved', value: 'Talked directly' },
+    // Schedule the notification
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: "We'd love your feedback! 💬",
+        body: "How has your experience been with our app? Tap to share your thoughts!",
+        data: { type: 'feedback-reminder' },
+      },
+      trigger: {
+        date: trigger,
+      },
+    });
 
-      { text: 'No, Confused about plan of action.', value: 'Confused' },
-      { text: 'No, not sure how to address it', value: 'Unsure' },
-      { text: 'No, afraid of consequences', value: 'Fear' }
-    ]
-  },
-  finalMessages: [
-    
-    "We understand why you might be feeling this way.",
-    "I will forward your input to my creators and they will get back to you soon.",
-    "Here are some suggestions that may make you feel relaxed: ",
-    "Listening to Music 🎧, , Breathing exercises, Chair Yoga, Take a tea/coffee break, talk to a friend/ loved one",
-    "It was nice chatting with you, mDOJO is signing off now."
-  ]
-};
+    console.log(`Scheduled feedback reminder for ${daysToAdd} days from now.`);
+  } else {
+    // On web, do nothing (or log if you want)
+    console.log('Notifications are not supported on web.');
+  }
+}
 
 const ChatScreen = () => {
   const { employeeId: loggedInEmployeeId, employeeName } = useLocalSearchParams();
@@ -277,7 +78,8 @@ const ChatScreen = () => {
   const [selectedMood, setSelectedMood] = useState(null);
   const [selectedOption, setSelectedOption] = useState(null);
   const [selectedSecondaryOption, setSelectedSecondaryOption] = useState(null);
-  const [currentFlow, setCurrentFlow] = useState(null);
+  const [currentFlow, setCurrentFlow] = useState(null); // Glad/Sad/Mad object from JSON
+  const [currentStep, setCurrentStep] = useState(null); // e.g., 'step1', 'step2_task'
   const [elaboration, setElaboration] = useState('');
   const [showOptions, setShowOptions] = useState(false);
   const [showSecondaryOptions, setShowSecondaryOptions] = useState(false);
@@ -294,46 +96,96 @@ const ChatScreen = () => {
 
   const thirdScrollRef = useRef(null);
   const fourthScrollRef = useRef(null);
+  const [editText, setEditText] = useState('');
+  const [showEditText, setShowEditText] = useState(false);
+  const [editTextPlaceholder, setEditTextPlaceholder] = useState('');
+  const [pendingNextStep, setPendingNextStep] = useState(null);
+  const [pendingMessages, setPendingMessages] = useState([]);
+  const [sadReasonKey, setSadReasonKey] = useState(null);
+  const [madReasonKey, setMadReasonKey] = useState(null);
+  const [conversationResponses, setConversationResponses] = useState([]);
+  const [showEndPopup, setShowEndPopup] = useState(false);
+  const router = useRouter();
+
+  const normalizeKey = (str) => str.toLowerCase().replace(/[^a-z0-9]+/g, '_');
 
   useEffect(() => {
-    const fetchUserName = async () => {
-      if (!loggedInEmployeeId) return;
-      try {
-        const userDoc = await getDoc(doc(db, 'employees', loggedInEmployeeId));
-        if (userDoc.exists()) {
-          setUserName(userDoc.data().name);
-        } else {
-          setUserName('User');
+    const fetchUserNameAndGreet = async () => {
+      let nameToShow = 'User';
+      if (loggedInEmployeeId) {
+        try {
+          const userDoc = await getDoc(doc(db, 'employees', loggedInEmployeeId));
+          if (userDoc.exists()) {
+            nameToShow = userDoc.data().name || 'User';
+          }
+        } catch (error) {
+          // fallback to 'User'
         }
-      } catch (error) {
-        setUserName('User');
       }
+      setUserName(nameToShow);
+
+      // Now set the welcome messages with the correct name
+      const welcomeMessage1 = {
+        id: 1,
+        text: "Welcome to mDojo!",
+        isUser: false,
+        time: new Date()
+      };
+      const welcomeMessage2 = {
+        id: 2,
+        text: `Hi, ${nameToShow}!`,
+        isUser: false,
+        time: new Date()
+      };
+      setMessages([welcomeMessage1, welcomeMessage2]);
+      setTimeout(() => {
+        showMoodSelection();
+      }, 800);
+      setChatState(CHAT_STATES.MOOD_SELECTION);
     };
 
-    fetchUserName();
+    fetchUserNameAndGreet();
   }, [loggedInEmployeeId]);
 
   useEffect(() => {
-    // Show two welcome messages: one general, one personalized
-    const welcomeMessage1 = {
-      id: 1,
-      text: "Welcome to mDojo!",
-      isUser: false,
-      time: new Date()
+    const fetchChatHistory = async () => {
+      if (!loggedInEmployeeId) return;
+      const q = query(
+        collection(db, 'chatResponses'),
+        where('employeeId', '==', loggedInEmployeeId),
+        orderBy('timestamp', 'asc')
+      );
+      const querySnapshot = await getDocs(q);
+      const history = [];
+      querySnapshot.forEach(doc => {
+        const data = doc.data();
+        history.push({
+          id: data.id || doc.id,
+          text: data.text,
+          isUser: data.isUser,
+          time: data.timestamp ? data.timestamp.toDate() : new Date()
+        });
+      });
+      if (history.length > 0) {
+        history.unshift(
+          {
+            id: 1,
+            text: "Welcome to mDojo!",
+            isUser: false,
+            time: new Date()
+          },
+          {
+            id: 2,
+            text: `Hi, ${userName || 'User'}!`,
+            isUser: false,
+            time: new Date()
+          }
+        );
+      }
+      setMessages(history);
     };
-    const userNameToShow = employeeName || userName || 'User';
-    const welcomeMessage2 = {
-      id: 2,
-      text: `Hi, ${userNameToShow}!`,
-      isUser: false,
-      time: new Date()
-    };
-    setMessages([welcomeMessage1, welcomeMessage2]);
-    setTimeout(() => {
-      showMoodSelection();
-    }, 800);
-    setChatState(CHAT_STATES.MOOD_SELECTION);
-  }, []);
+    fetchChatHistory();
+  }, [loggedInEmployeeId, userName]);
 
   useEffect(() => {
     if (scrollViewRef.current) {
@@ -433,7 +285,7 @@ const ChatScreen = () => {
         ...(elaboration && { elaboration: elaboration })
       };
       
-      await addDoc(collection(db, 'chatResponses'), responseData);
+      setConversationResponses(prev => [...prev, responseData]);
       console.log('Chat response saved successfully');
     } catch (error) {
       console.error("Error saving chat response: ", error);
@@ -441,33 +293,55 @@ const ChatScreen = () => {
     }
   };
 
-const handleMoodSelect = async (mood) => {
-    const moodData = MOODS.find(m => m.id === mood);
-    setSelectedMood(mood);
-    
-    const userMoodMessage = {
+// Add goToStep function
+const goToStep = (stepKey) => {
+  setCurrentStep(stepKey);
+  const step = currentFlow[stepKey];
+  if (step && step.question) {
+    const botMsg = {
       id: Date.now(),
-      text: moodData.label,
-      isUser: true,
+      text: step.question,
+      isUser: false,
       time: new Date()
     };
+    setMessages(prev => [...prev, botMsg]);
+    // saveChatMessage(loggedInEmployeeId, botMsg); // REMOVED
+  }
+};
 
-    setMessages(prev => [...prev, userMoodMessage]);
-    
-    try {
-      await saveEmployeeMood(loggedInEmployeeId, mood);
-      await updateMoodCount(mood);
-      
-      const flow = mood === 'glad' ? GLAD_FLOW : 
-                   mood === 'sad' ? SAD_FLOW : MAD_FLOW;
-      setCurrentFlow(flow);
-      
-      showInitialQuestion(mood);
-    } catch (error) {
-      console.error("Error in mood selection flow:", error);
-      Alert.alert("Error", "There was a problem processing your selection.");
-    }
-  };
+const handleMoodSelect = (mood) => {
+  setSelectedMood(mood);
+  let flow = null;
+  if (mood === 'glad') flow = mdojoFullFlow.Glad;
+  else if (mood === 'sad') flow = mdojoFullFlow.Sad;
+  else if (mood === 'mad') flow = mdojoFullFlow.Mad;
+
+  setCurrentFlow(flow);
+  setMessages(prev => [
+    ...prev,
+    { id: Date.now(), text: mood.charAt(0).toUpperCase() + mood.slice(1), isUser: true, time: new Date() }
+  ]);
+  // Use the local flow variable directly:
+  goToStepWithFlow('step1', flow);
+};
+
+// New helper function:
+const goToStepWithFlow = (stepKey, flowOverride) => {
+  const flow = flowOverride || currentFlow;
+  setCurrentStep(stepKey);
+  const step = flow[stepKey];
+  if (step && step.question) {
+    setMessages(prev => [
+      ...prev,
+      {
+        id: Date.now(),
+        text: step.question,
+        isUser: false,
+        time: new Date()
+      }
+    ]);
+  }
+};
 
   const handleElaborationSubmit = async () => {
     if (!elaboration.trim()) return;
@@ -559,44 +433,59 @@ const handleMoodSelect = async (mood) => {
     }, 1000);
   };
 
-  const handleOptionSelect = (option) => {
-    const optionMessage = {
+  const handleOptionSelect = (optionText, nextStepKey) => {
+    // Track Sad step1 selection
+    if (currentFlow && currentFlow === mdojoFullFlow.Sad && currentStep === 'step1') {
+      setSadReasonKey(normalizeKey(optionText));
+    }
+    // Dynamic Sad step3 branching after step2
+    if (currentFlow && currentFlow === mdojoFullFlow.Sad && currentStep === 'step2' && nextStepKey === 'step3_dynamic') {
+      if (sadReasonKey) {
+        goToStep('step3_' + sadReasonKey);
+        return;
+      }
+    }
+    // Track Mad step1 selection
+    if (currentFlow && currentFlow === mdojoFullFlow.Mad && currentStep === 'step1') {
+      setMadReasonKey(normalizeKey(optionText));
+    }
+    // Dynamic Mad step3 branching after step2
+    if (currentFlow && currentFlow === mdojoFullFlow.Mad && currentStep === 'step2' && nextStepKey === 'step3_dynamic') {
+      if (madReasonKey) {
+        goToStep('step3_' + madReasonKey);
+        return;
+      }
+    }
+    // Default behavior
+    const userMsg = {
       id: Date.now(),
-      text: option.text,
+      text: optionText,
       isUser: true,
       time: new Date()
     };
-
-    setSelectedOption(option.value);
-    setMessages(prev => [...prev, optionMessage]);
-    setShowOptions(false);
-    
-    setTimeout(() => {
-      const gifUrl = currentFlow.initialQuestion.gifs[option.value];
-      if (gifUrl) {
-        const gifMessage = {
-          id: Date.now() + 1,
-          text: gifUrl,
-          isUser: false,
-          time: new Date(),
-          isGif: true
-        };
-        setMessages(prev => [...prev, gifMessage]);
-      }
-      
-      setTimeout(() => {
-        const secondaryQuestion = {
-          id: Date.now() + 2,
-          text: currentFlow.secondaryQuestion.question,
-          isUser: false,
-          time: new Date(),
-          isFollowUp: true
-        };
-        setMessages(prev => [...prev, secondaryQuestion]);
-        setChatState(CHAT_STATES.SECONDARY_QUESTION);
-        setShowSecondaryOptions(true);
-      }, 1000);
-    }, 500);
+    setMessages(prev => {
+      console.log('[DEBUG] Adding message:', userMsg);
+      return [...prev, userMsg];
+    });
+    // saveChatMessage(loggedInEmployeeId, userMsg); // REMOVED
+    const step = currentFlow[nextStepKey];
+    if (step && step.end === true) {
+      showFinalMessages();
+      return;
+    }
+    if (step && step.question_edit) {
+      setEditText(step.question_edit);
+      setEditTextPlaceholder(step.question_edit);
+      setShowEditText(true);
+      setPendingNextStep(step.next);
+      setCurrentStep(nextStepKey);
+    } else if (step && step.messages) {
+      setPendingMessages(step.messages);
+      setCurrentStep(nextStepKey);
+      showPendingMessages(step.messages, step.next);
+    } else {
+      goToStep(nextStepKey);
+    }
   };
 
 const handleSecondaryOptionSelect = (option) => {
@@ -700,23 +589,101 @@ const handleFourthOptionSelect = (option) => {
 };
 
   const showFinalMessages = () => {
-    const finalMessages = currentFlow.finalMessages;
-    
-    finalMessages.forEach((msg, index) => {
-      setTimeout(() => {
-        const finalMessage = {
-          id: Date.now() + index,
-          text: msg,
-          isUser: false,
-          time: new Date()
+    console.log('[DEBUG] Entered showFinalMessages'); // Debug log
+    // Store conversation summary in Firestore
+    const chatObject = {};
+    messages
+      .filter(msg => typeof msg.text === 'string' && msg.text !== undefined && msg.text !== null)
+      .forEach((msg, idx) => {
+        chatObject[idx] = {
+          ...msg,
+          text: typeof msg.text === 'string' ? msg.text : ''
         };
-        setMessages(prev => [...prev, finalMessage]);
-        
-        if (index === finalMessages.length - 1) {
-          setChatState(CHAT_STATES.THANK_YOU);
+      });
+    const summaryData = {
+      employeeId: loggedInEmployeeId,
+      mood: selectedMood,
+      timestamp: new Date(),
+      chat: chatObject
+    };
+    addDoc(collection(db, 'chatResponses'), summaryData)
+      .then(() => {
+        console.log('Conversation summary saved to Firestore');
+        if (Platform.OS === 'web') {
+          window.alert('Thank you!\nYour feedback has been submitted. We appreciate your time!');
+          router.replace('/login');
+        } else {
+          Alert.alert(
+            'Thank you!',
+            'Your feedback has been submitted. We appreciate your time!',
+            [
+              { text: 'OK', onPress: () => router.replace('/login') }
+            ]
+          );
         }
-      }, index * 1000);
+      })
+      .catch((error) => {
+        console.error('Error saving conversation summary:', error);
+        if (Platform.OS === 'web') {
+          window.alert('Error saving feedback. Please try again.');
+        } else {
+          Alert.alert('Error', 'Error saving feedback. Please try again.');
+        }
+      });
+  };
+
+  const showPendingMessages = (messagesArr, nextStep) => {
+    if (!messagesArr || messagesArr.length === 0) {
+      if (nextStep) {
+        if (nextStep === 'end') {
+          showFinalMessages();
+        } else {
+          goToStep(nextStep);
+        }
+      }
+      return;
+    }
+    console.log('[DEBUG] Entered showPendingMessages');
+    messagesArr.forEach((msg, idx) => {
+      setTimeout(() => {
+        setMessages(prev => [
+          ...prev,
+          { id: Date.now() + idx, text: msg, isUser: false, time: new Date() }
+        ]);
+        if (idx === messagesArr.length - 1 && nextStep) {
+          setTimeout(() => {
+            if (nextStep === 'end') {
+              showFinalMessages();
+            } else {
+              goToStep(nextStep);
+            }
+          }, 1200);
+        }
+      }, idx * 1200);
     });
+  };
+
+  const handleEditTextSubmit = () => {
+    if (!editText.trim()) return;
+    const userMsg = {
+      id: Date.now(),
+      text: editText,
+      isUser: true,
+      time: new Date()
+    };
+    setMessages(prev => [...prev, userMsg]);
+    // saveChatMessage(loggedInEmployeeId, userMsg); // REMOVED
+    setShowEditText(false);
+    setEditText('');
+    if (pendingNextStep) {
+      const step = currentFlow[pendingNextStep];
+      if (step && step.messages) {
+        showPendingMessages(step.messages, step.next);
+      } else {
+        goToStep(pendingNextStep);
+      }
+      setPendingNextStep(null);
+    }
   };
 
   const renderMoodSelection = () => {
@@ -761,41 +728,43 @@ const handleFourthOptionSelect = (option) => {
     };
     
     return (
-      <View style={styles.optionsContainer}>
-        <TouchableOpacity 
-          style={styles.scrollArrowLeft} 
-          onPress={scrollLeft}
-        >
-          <MaterialIcons name="chevron-left" size={24} color="#FFF" />
-        </TouchableOpacity>
-        
-        <ScrollView 
-          ref={followUpScrollRef}
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.optionsScrollContent}
-        >
-          {currentFlow.initialQuestion.options.map((option, index) => (
-            <TouchableOpacity
-              key={index}
-              style={[
-                styles.optionButton,
-                { backgroundColor: '#E31937' }
-              ]}
-              onPress={() => handleOptionSelect(option)}
-            >
-              {option.emoji && <Text style={styles.optionEmoji}>{option.emoji}</Text>}
-              <Text style={styles.optionText}>{option.text}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-        
-        <TouchableOpacity 
-          style={styles.scrollArrowRight} 
-          onPress={scrollRight}
-        >
-          <MaterialIcons name="chevron-right" size={24} color="#FFF" />
-        </TouchableOpacity>
+      <View>
+        <View style={styles.optionsContainer}>
+          <ScrollView 
+            ref={followUpScrollRef}
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.optionsScrollContent}
+          >
+            {currentFlow.initialQuestion.options.map((option, index) => (
+              <TouchableOpacity
+                key={index}
+                style={[
+                  styles.optionButton,
+                  { backgroundColor: '#E31937' }
+                ]}
+                onPress={() => handleOptionSelect(option.text, option.nextStepKey)}
+              >
+                {option.emoji && <Text style={styles.optionEmoji}>{option.emoji}</Text>}
+                <Text style={styles.optionText}>{option.text}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+        <View style={styles.scrollArrowsContainer}>
+          <TouchableOpacity 
+            style={styles.scrollArrowButton} 
+            onPress={scrollLeft}
+          >
+            <MaterialIcons name="chevron-left" size={24} color="#FFF" />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.scrollArrowButton} 
+            onPress={scrollRight}
+          >
+            <MaterialIcons name="chevron-right" size={24} color="#FFF" />
+          </TouchableOpacity>
+        </View>
       </View>
     );
   };
@@ -812,76 +781,90 @@ const handleFourthOptionSelect = (option) => {
     };
     
     return (
-      <View style={styles.optionsContainer}>
-        <TouchableOpacity 
-          style={styles.scrollArrowLeft} 
-          onPress={scrollLeft}
-        >
-          <MaterialIcons name="chevron-left" size={24} color="#FFF" />
-        </TouchableOpacity>
-        
-        <ScrollView 
-          ref={secondaryScrollRef}
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.optionsScrollContent}
-        >
-          {currentFlow.secondaryQuestion.options.map((option, index) => (
-            <TouchableOpacity
-              key={index}
-              style={[
-                styles.optionButton,
-                { backgroundColor: '#E31937' }
-              ]}
-              onPress={() => handleSecondaryOptionSelect(option)}
-            >
-              <Text style={styles.optionText}>{option.text}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-        
-        <TouchableOpacity 
-          style={styles.scrollArrowRight} 
-          onPress={scrollRight}
-        >
-          <MaterialIcons name="chevron-right" size={24} color="#FFF" />
-        </TouchableOpacity>
+      <View>
+        <View style={styles.optionsContainer}>
+          <ScrollView 
+            ref={secondaryScrollRef}
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.optionsScrollContent}
+          >
+            {currentFlow.secondaryQuestion.options.map((option, index) => (
+              <TouchableOpacity
+                key={index}
+                style={[
+                  styles.optionButton,
+                  { backgroundColor: '#E31937' }
+                ]}
+                onPress={() => handleSecondaryOptionSelect(option)}
+              >
+                <Text style={styles.optionText}>{option.text}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+        <View style={styles.scrollArrowsContainer}>
+          <TouchableOpacity 
+            style={styles.scrollArrowButton} 
+            onPress={scrollLeft}
+          >
+            <MaterialIcons name="chevron-left" size={24} color="#FFF" />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.scrollArrowButton} 
+            onPress={scrollRight}
+          >
+            <MaterialIcons name="chevron-right" size={24} color="#FFF" />
+          </TouchableOpacity>
+        </View>
       </View>
     );
   };
   const renderThirdOptions = () => {
   if (!showThirdOptions || chatState !== CHAT_STATES.THIRD_QUESTION || !currentFlow?.thirdQuestion) return null;
   
+  const scrollLeft = () => {
+    thirdScrollRef.current?.scrollTo({ x: 0, animated: true });
+  };
+  
+  const scrollRight = () => {
+    thirdScrollRef.current?.scrollToEnd({ animated: true });
+  };
+  
   return (
-    <View style={styles.optionsContainer}>
-      <TouchableOpacity 
-        style={styles.scrollArrowLeft} 
-        onPress={() => thirdScrollRef.current?.scrollTo({ x: 0, animated: true })}
-      >
-        <MaterialIcons name="chevron-left" size={24} color="#FFF" />
-      </TouchableOpacity>
-      <ScrollView 
-        ref={thirdScrollRef}
-        horizontal 
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.optionsScrollContent}
-      >
-        {currentFlow.thirdQuestion.options.map((option, index) => (
-          <TouchableOpacity
-            key={index}
-            style={styles.optionButton}
-            onPress={() => handleThirdOptionSelect(option)}
-          >
-            <Text style={styles.optionText}>{option.text}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-      <TouchableOpacity 
-        style={styles.scrollArrowRight} 
-        onPress={() => thirdScrollRef.current?.scrollToEnd({ animated: true })}
-      >
-        <MaterialIcons name="chevron-right" size={24} color="#FFF" />
-      </TouchableOpacity>
+    <View>
+      <View style={styles.optionsContainer}>
+        <ScrollView 
+          ref={thirdScrollRef}
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.optionsScrollContent}
+        >
+          {currentFlow.thirdQuestion.options.map((option, index) => (
+            <TouchableOpacity
+              key={index}
+              style={styles.optionButton}
+              onPress={() => handleThirdOptionSelect(option)}
+            >
+              <Text style={styles.optionText}>{option.text}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+      <View style={styles.scrollArrowsContainer}>
+        <TouchableOpacity 
+          style={styles.scrollArrowButton} 
+          onPress={scrollLeft}
+        >
+          <MaterialIcons name="chevron-left" size={24} color="#FFF" />
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={styles.scrollArrowButton} 
+          onPress={scrollRight}
+        >
+          <MaterialIcons name="chevron-right" size={24} color="#FFF" />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 };
@@ -889,38 +872,92 @@ const handleFourthOptionSelect = (option) => {
 const renderFourthOptions = () => {
   if (!showFourthOptions || chatState !== CHAT_STATES.FOURTH_QUESTION || !currentFlow?.fourthQuestion) return null;
   
+  const scrollLeft = () => {
+    fourthScrollRef.current?.scrollTo({ x: 0, animated: true });
+  };
+  
+  const scrollRight = () => {
+    fourthScrollRef.current?.scrollToEnd({ animated: true });
+  };
+  
   return (
-    <View style={styles.optionsContainer}>
-      <TouchableOpacity 
-        style={styles.scrollArrowLeft} 
-        onPress={() => fourthScrollRef.current?.scrollTo({ x: 0, animated: true })}
-      >
-        <MaterialIcons name="chevron-left" size={24} color="#FFF" />
-      </TouchableOpacity>
-      <ScrollView 
-        ref={fourthScrollRef}
-        horizontal 
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.optionsScrollContent}
-      >
-        {currentFlow.fourthQuestion.options.map((option, index) => (
-          <TouchableOpacity
-            key={index}
-            style={styles.optionButton}
-            onPress={() => handleFourthOptionSelect(option)}
-          >
-            <Text style={styles.optionText}>{option.text}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-      <TouchableOpacity 
-        style={styles.scrollArrowRight} 
-        onPress={() => fourthScrollRef.current?.scrollToEnd({ animated: true })}
-      >
-        <MaterialIcons name="chevron-right" size={24} color="#FFF" />
-      </TouchableOpacity>
+    <View>
+      <View style={styles.optionsContainer}>
+        <ScrollView 
+          ref={fourthScrollRef}
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.optionsScrollContent}
+        >
+          {currentFlow.fourthQuestion.options.map((option, index) => (
+            <TouchableOpacity
+              key={index}
+              style={styles.optionButton}
+              onPress={() => handleFourthOptionSelect(option)}
+            >
+              <Text style={styles.optionText}>{option.text}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+      <View style={styles.scrollArrowsContainer}>
+        <TouchableOpacity 
+          style={styles.scrollArrowButton} 
+          onPress={scrollLeft}
+        >
+          <MaterialIcons name="chevron-left" size={24} color="#FFF" />
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={styles.scrollArrowButton} 
+          onPress={scrollRight}
+        >
+          <MaterialIcons name="chevron-right" size={24} color="#FFF" />
+        </TouchableOpacity>
+      </View>
     </View>
   );
+};
+
+const renderCurrentStep = () => {
+  if (!currentFlow || !currentStep) return null;
+  const step = currentFlow[currentStep];
+  if (!step) return null;
+  if (step.question_edit && showEditText) {
+    return (
+      <View style={[styles.optionsContainer, { flexDirection: 'row', alignItems: 'center' }]}> {/* Make row */}
+        <TextInput
+          style={[styles.input, { flex: 1, marginRight: 8 }]}
+          value={editText}
+          onChangeText={setEditText}
+          placeholder={editTextPlaceholder}
+          multiline
+        />
+        <TouchableOpacity
+          style={[styles.sendButton, !editText.trim() && styles.sendButtonDisabled]}
+          onPress={handleEditTextSubmit}
+          disabled={!editText.trim()}
+        >
+          <MaterialIcons name="send" size={22} color="#fff" style={styles.sendIcon} />
+        </TouchableOpacity>
+      </View>
+    );
+  }
+  if (step.options) {
+    return (
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'flex-start' }}>
+        {Object.entries(step.options).map(([optionText, nextStepKey]) => (
+          <TouchableOpacity
+            key={optionText}
+            style={[styles.optionButton, { alignSelf: 'flex-start', marginRight: 12, marginBottom: 12, minWidth: undefined, width: undefined, maxWidth: '90%' }]}
+            onPress={() => handleOptionSelect(optionText, nextStepKey)}
+          >
+            <Text style={styles.optionText}>{optionText}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    );
+  }
+  return null;
 };
     const renderInputField = () => {
       if (chatState === CHAT_STATES.ELABORATION) {
@@ -966,7 +1003,9 @@ const renderFourthOptions = () => {
           </View>
         )}
 
-            {messages.map((msg) => (
+            {messages
+              .filter(msg => typeof msg.text === 'string' && msg.text.trim() !== '')
+              .map((msg) => (
               <Animated.View 
                 key={msg.id} 
                 style={[
@@ -995,6 +1034,7 @@ const renderFourthOptions = () => {
               </Animated.View>
             ))}
             {renderMoodSelection()}
+            {renderCurrentStep()}
             {renderFollowUpOptions()}
             {renderSecondaryOptions()}
             {renderThirdOptions()}
@@ -1021,11 +1061,43 @@ const renderFourthOptions = () => {
               </TouchableOpacity>
             </View>
           )}
+
+          {/* End of conversation popup */}
+          <Modal
+            visible={showEndPopup}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setShowEndPopup(false)}
+          >
+            <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' }}>
+              <View style={{ backgroundColor: '#fff', borderRadius: 20, padding: 32, alignItems: 'center', maxWidth: 320 }}>
+                <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 16, color: '#E31937' }}>Thank you!</Text>
+                <Text style={{ fontSize: 16, color: '#444', marginBottom: 24, textAlign: 'center' }}>
+                  Your feedback has been submitted. We appreciate your time!
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setShowEndPopup(false)}
+                  style={{ backgroundColor: '#E31937', borderRadius: 16, paddingVertical: 10, paddingHorizontal: 32 }}
+                >
+                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>Close</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
         </View>
       </View>
     </SafeAreaView>
   );
 };
+
+const saveChatMessage = async (employeeId, messageObj) => {
+  await addDoc(collection(db, 'chatResponses'), {
+    employeeId,
+    ...messageObj,
+    timestamp: serverTimestamp(),
+  });
+};
+
 
 // ... (keep all your existing styles)
 
@@ -1361,18 +1433,26 @@ scrollArrowRight: {
   borderTopRightRadius: 16,
   borderBottomRightRadius: 16,
 },
-optionsContainer: {
-  backgroundColor: '#FFF',
-  borderRadius: 16,
+scrollArrowsContainer: {
+  flexDirection: 'row',
+  justifyContent: 'center',
+  alignItems: 'center',
+  marginTop: 8,
   marginHorizontal: 16,
-  marginBottom: 12,
-  padding: 12,
+  gap: 12,
+},
+scrollArrowButton: {
+  backgroundColor: 'rgba(227, 25, 55, 0.8)',
+  borderRadius: 20,
+  width: 40,
+  height: 40,
+  justifyContent: 'center',
+  alignItems: 'center',
   shadowColor: '#000',
-  shadowOffset: { width: 0, height: 4 },
-  shadowOpacity: 0.1,
-  shadowRadius: 8,
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.2,
+  shadowRadius: 4,
   elevation: 3,
-  position: 'relative',
 },
 });
 

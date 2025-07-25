@@ -1,0 +1,614 @@
+{
+  "Glad": {
+    "step1": {
+      "question": "That’s lovely to hear\ud83d\ude0a What’s been lifting your spirits today?\n Would you say your glad feeling today is connected to...",
+      "options": {
+        "Accomplishing a task or meeting a deadline": "step2_task",
+        "Appreciation or support from a colleague or manager": "step2_support",
+        "A positive conversation or team interaction": "step2_conversation",
+        "Progress on meaningful work or hitting a milestone": "step2_progress",
+        "Learning something new or exploring an opportunity": "step2_learning",
+        "Having a smooth and balanced workday": "step2_balance",
+        "Experiencing a supportive work culture": "step2_culture",
+        "Feeling good about your growth or career path": "step2_growth"
+      },
+      "store_as": "glad_reason"
+    },
+    "step2_task": {
+      "question": "That’s always a great feeling! \ud83e\udd1d Was it a task you’d been working on for a while or a quick win that gave you a sense of progress?",
+      "options": {
+        "A task I\u2019d been postponing for a while": "step3",
+        "Met a tight deadline just in time": "step3",
+        "Made visible progress on a long project": "step3",
+        "Knocked out something quicker than expected": "step3"
+      },
+      "store_as": "glad_detail"
+    },
+    "step2_support": {
+      "question": "That’s so uplifting \ud83c\udf1f What kind of appreciation or support did you receive — a kind word, a helpful action, or maybe a thoughtful message?",
+      "options": {
+        "Verbal recognition in a meeting or 1-on-1": "step3",
+        "A thoughtful message or thank-you email": "step3",
+        "Public praise or team shoutout": "step3",
+        "A helpful gesture when I needed support": "step3"
+      },
+      "store_as": "glad_detail"
+    },
+    "step2_conversation": {
+      "question": "Team interactions can make all the difference \ud83e\udd1d What about this conversation or moment stood out for you?",
+      "options": {
+        "We solved a work-related problem together": "step3",
+        "They truly listened and supported me": "step3",
+        "Shared light moments or inside jokes": "step3",
+        "Felt a deeper connection or mutual respect": "step3"
+      },
+      "store_as": "glad_detail"
+    },
+    "step2_progress": {
+      "question": "Progress on work that matters feels so rewarding personal win, or something that brought clarity?",
+      "options": {
+        "Completed a tough phase of a project": "step3",
+        "Hit a goal I\u2019ve been aiming for": "step3",
+        "Got clarity on a project\u2019s direction": "step3",
+        "Felt like my work had purpose today": "step3"
+      },
+      "store_as": "glad_detail"
+    },
+    "step2_learning": {
+      "question": "Growth always sparks energy!Was it about learning a new skill, being trusted with something new, or stepping into a fresh opportunity?",
+      "options": {
+        "Learned a new tool or skill": "step3",
+        "Got mentored or guided by someone": "step3",
+        "Took on something outside my comfort zone": "step3",
+        "Trusted with new responsibility or role": "step3"
+      },
+      "store_as": "glad_detail"
+    },
+    "step2_balance": {
+      "question": "Balance is such a win What helped make your day feel smooth — fewer interruptions, managing time well, or just good headspace?",
+      "options": {
+        "Fewer or no meetings today": "step3",
+        "Calm focus \u2014 minimal distractions": "step3",
+        "Clear priorities, no overthinking": "step3",
+        "Took small breaks that helped regulate my energy": "step3"
+      },
+      "store_as": "glad_detail"
+    },
+    "step2_culture": {
+      "question": "That’s wonderful to hear What part of the culture felt supportive today — teamwork, inclusion, flexibility, or just a positive vibe?",
+      "options": {
+        "Team collaboration felt easy and respectful": "step3",
+        "Felt heard and included": "step3",
+        "Flexibility around how or when I worked": "step3",
+        "Leaders or peers checked in meaningfully": "step3"
+      },
+      "store_as": "glad_detail"
+    },
+    "step2_growth": {
+      "question": "That’s inspiring  Was it a new responsibility, feedback you received, or something that reminded you you’re moving in the right direction?",
+      "options": {
+        "Took on a stretch task or new challenge": "step3",
+        "Feedback reminded me of my progress": "step3",
+        "Gained clarity about my path or goals": "step3",
+        "Recognized for how far I\u2019ve come": "step3"
+      },
+      "store_as": "glad_detail"
+    },
+    "step3": {
+      "question": "Do you feel like this experience had any impact on your work or mindset today?",
+      "options": {
+        "Yes \u2014 I felt more focused or productive": "step4",
+        "It lifted my mood and helped me stay positive": "step4",
+        "It didn\u2019t change much, but it was still nice": "step4",
+        "Not sure yet, but maybe it will": "step4"
+      },
+      "store_as": "glad_impact"
+    },
+    "step4": {
+      "question": "Even small moments can be worth acknowledging. Would you like to share this with someone — or keep it just for yourself for now?",
+      "options": {
+        " Yes — I’d like to share it with a teammate or colleague ": "step5_t",
+        "Yes — I’d like to share it with my manager or supervisor ": "step5_m",
+        "No — I’ll write it in my own words": "step5_teammate_custom",
+        "No, I’m good — just needed to reflect": "step6"
+      },
+      "store_as": "glad_share_intent"
+    },
+    "step5_t": {
+      "question": "Would you like a message template to help you share this moment? You can edit it or write your own too.",
+      "options": {
+        "Yes — show me a suggested message": "step5_teammate_suggested",
+        " No — I’ll write it in my own words": "step5_teammate_custom"
+      },
+      "store_as": "glad_share_intent"
+    },
+    "step5_m": {
+      "question": "Would you like a message template to help you share this moment? You can edit it or write your own too.",
+      "options": {
+        "Yes — show me a suggested message": "step5_manager_suggested",
+        " No — I’ll write it in my own words": "step5_teammate_custom"
+      },
+      "store_as": "glad_share_intent"
+    },
+    "step5_manager_suggested": {
+      "question_edit": "Hi [Manager’s Name], I just wanted to thank you for [support/recognition/feedback]. It really boosted my energy today and reminded me of the kind of growth I’m working toward.",
+      "next": "step5_teammate_thank"
+    },
+    "step5_teammate_suggested": {
+      "question_edit": "“Hey [Name], just wanted to say — I really appreciated [something specific] today. It made my day lighter and reminded me how great our team can be.  ",
+      "next": "step5_teammate_thank"
+    },
+    "step5_teammate_custom": {
+      "question_edit": "Write your message here...",
+      "next": "step5_teammate_thank"
+    },
+    "step5_teammate_thank": {
+      "messages": [
+        "That’s so thoughtful of you to share this. Moments like these can really ripple out and brighten someone else’s day too.",
+        "Whether it’s a simple thank-you or a small note of recognition, it’s a lovely way to strengthen those positive connections."
+      ],
+      "next": "step7"
+     
+    },
+    "step6": {
+      "messages": ["Totally fair. Sometimes just taking a moment to pause and hold that feeling is enough. Glad you gave yourself this space — even a quiet win matters."],
+      
+      "next": "step7"
+    },
+    "step7": {
+      "question": "Would you like to take this moment further in any way?",
+      "options": {
+        " Jot this down to remember later ": "step8",
+        "Turn it into a mini goal or affirmation": "step8",
+        "Celebrate this win with a small reward ": "step8",
+        "No thanks — I’m good for now ": "step8"
+      }
+    },
+    "step8": {
+      "messages": [
+        "Thanks for taking a moment to pause and reflect. Whether you chose to share it or simply held space for it, that matters.",
+        "You’re always welcome to check in again — whether it’s to share a win, work through something tough, or just breathe for a moment",
+        "Feel free to come back anytime during your day.",
+        " Take care, and talk to you soon!  ",
+        "— Your wellbeing chatbot  " 
+      ]
+      ,
+      "next":"end"
+     
+    }
+
+  },
+  "Sad": {
+    "step1": {
+      "question": "’m really sorry to hear you’re feeling low today.sometimes, and it’s okay to talk about it.\nEveryone has tough days Can you tell me what’s weighing on you at work right now?",
+      "options": {
+        "Manager-related challenges": "step2",
+        "Difficult interactions with colleagues": "step2",
+        "Company culture or policies": "step2",
+        "Lack of role clarity or direction": "step2",
+        "Workspace, tools, or infrastructure issues": "step2",
+        "Struggling with work-life balance": "step2",
+        "Feeling emotionally exhausted or overwhelmed": "step2"
+      },
+      "store_as": "sad_reason"
+    },
+    "step2": {
+      "question": "Thanks for letting me know. Just so I can understand a bit better — how long have you been feeling this way?",
+      "options": {
+        "Just today": "step3_dynamic",
+        "A few days": "step3_dynamic",
+        "About a week": "step3_dynamic",
+        "Several weeks": "step3_dynamic",
+        "Months or longer": "step3_dynamic"
+      },
+      "store_as": "sad_duration"
+    },
+    "step3_manager_related_challenges": {
+      "question": "That can be really tough.What kind of challenge are you facing with your manager right now?",
+      "options": {
+        "I don’t feel heard or understood": "step4_m",
+        "Lack of support or feedback ": "step4_m",
+        "Expectations keep changing ": "step4_m",
+        "Communication feels distant ": "step4_m"
+      }
+    },
+    "step4_m": {
+      "question": "If you had the space or support you needed right now — what do you think would help improve things, even a little?\nI hear you — that can affect your day more than people realize. What kind of support or change from your manager would make things better for you?",
+      "options": {
+        "More open and honest communication ": "step5",
+        "One-on-one time to align or reconnect  ": "step5",
+        "More recognition or encouragement  ": "step5",
+        "Clearer guidance or expectations ": "step5"
+      }
+    },
+    "step3_difficult_interactions_with_colleagues": {
+      "question": "I’m sorry you’re going through that.What’s been happening with your colleagues?",
+      "options": {
+        " Conflict or misunderstanding": "step4_c",
+        "Feeling excluded or ignored": "step4_c",
+        "Poor collaboration ": "step4_c",
+        "Communication breakdowns": "step4_c"
+      }
+    },
+    "step4_c": {
+      "question": "If you had the space or support you needed right now — what do you think would help improve things, even a little?\nRelationships at work matter a lot. Is there anything you wish could change in how you and your colleaues work together?",
+      "options": {
+        "A chance to talk things through calmly": "step5",
+        " More team support or accountability": "step5",
+        " Help resolving a misunderstanding  ": "step5",
+        " A little space to reset the dynamic ": "step5"
+      }
+    },
+    "step3_company_culture": {
+      "question": "That’s frustrating.What part of the culture or policy is affecting you?",
+      "options": {
+        "Negative environment": "step4_cc",
+        "Rigid/unfair policies ": "step4_cc",
+        "Lack of transparency": "step4_cc",
+        "Micromanagement": "step4_cc"
+      }
+    },
+    "step4_cc": {
+      "question": "If you had the space or support you needed right now — what do you think would help improve things, even a little?\nThank you for sharing that. If something about the workplace culture or policies could shift, what would help you feel more supported?",
+      "options": {
+        " Fairness or transparency in decision-making ": "step5",
+        " More flexible or human-centered policies": "step5",
+        " A safe space to raise concerns ": "step5",
+        "Better alignment with company values": "step5"
+      }
+    },
+    "step3_role_clarity": {
+      "question": "Feeling unsure about your role can be unsettling.What’s been unclear or confusing for you?",
+      "options": {
+        "Unclear responsibilities ": "step4_rc",
+        "Constantly shifting role": "step4_rc",
+        "No growth path": "step4_rc",
+        "No goals or expectations ": "step4_rc"
+      }
+    },
+   "step4_rc": {
+      "question": "If you had the space or support you needed right now — what do you think would help improve things, even a little?\nThat uncertainty can be draining. What kind of clarity or support would help you feel more grounded in your role?",
+      "options": {
+        " A clear outline of responsibilities ": "step5",
+        "Defined short- and long-term goals ": "step5",
+        " Regular check-ins to align expectations ": "step5",
+        "Mentoring or guidance for career direction": "step5"
+      }
+    },
+    "step3_work_life_balance": {
+      "question": "Balance can be really hard to maintain. What’s making it difficult right now?",
+      "options": {
+        "Always on or long hours": "step4_w",
+        "No clear boundaries ": "step4_w",
+        "Overloaded with tasks": "step4_w",
+        "Constant fatigue": "step4_w"
+      }
+    },
+    "step4_w": {
+      "question": "If you had the space or support you needed right now — what do you think would help improve things, even a little?\nBalance can feel impossible at times — I hear you. What would help make things feel more manageable?",
+      "options": {
+        "More control over my schedule ": "step5",
+        " Less pressure to multitask constantly": "step5",
+        "  Time to fully log off after work": "step5",
+        "Clearer boundaries or task prioritization": "step5"
+      }
+    },
+    "step3_emotional_exhaustion": {
+      "question": "That sounds heavy. What’s contributing to this feeling of burnout or stress?",
+      "options": {
+        "High pressure or workload": "step4_ee",
+        "No emotional support": "step4_ee",
+        "Isolation": "step4_ee",
+        "Can’t be authentic at work ": "step4_ee"
+      }
+    },
+    "step4_ee": {
+      "question": "If you had the space or support you needed right now — what do you think would help improve things, even a little?\nFeeling this way can be heavy. If you had just one small step of support, what do you think would help ease that feeling?",
+      "options": {
+        "Talking to someone who listens without judgment": "step5",
+        "A break or change in routine ": "step5",
+        "A lighter workload or temporary shift in tasks ": "step5",
+        "More empathy and understanding at work": "step5"
+      }
+    },
+    "step3_workspace_tools_or_infrastructure_issues": {
+      "question": "Your environment impacts how you feel.What issues are you facing?  ",
+      "options": {
+        "Poor hygiene or cleanliness": "step4_wi",
+        "Tools/systems not working ": "step4_wi",
+        "Uncomfortable workspace ": "step4_wi",
+        "No support when things break": "step4_wi"
+      }
+    },
+    "step4_wi": {
+      "question": "If you had the space or support you needed right now — what do you think would help improve things, even a little?\nYour work environment really does impact your energy. What kind of change would make your setup more comfortable or workable?",
+      "options": {
+        " Cleaner or more hygienic conditions": "step5",
+        "Better tools or technical support": "step5",
+        " Ergonomic or functional workspace ": "step5",
+        " A faster way to report and resolve issues": "step5"
+      }
+    },
+    "step5": {
+      "question": "Would you like to share how you’re feeling with someone — maybe a manager, a teammate, or even anonymously?",
+      "options": {
+        " Share with a teammate or colleague": "step5_t",
+        "Share with my manager or supervisor": "step5_m",
+        "Submit anonymously ": "step5_custom",
+        "No thanks — just needed to talk": "step5_teammate_thank"
+      }
+    },
+    "step5_t": {
+      "question": "Would you like a ready-to-use message template to help you express how you’re feeling? You can customize or write your own if you prefer",
+      "options": {
+        "Yes — show me a suggested message": "step5_teammate_suggested",
+        " No — I’ll write it in my own words": "step5_teammate_custom"
+      }
+    },
+    "step5_m": {
+      "question": "“Would you like a ready-to-use message template to help you express how you’re feeling? You can customize or write your own if you prefer",
+      "options": {
+        "Yes — show me a suggested message": "step5_manager_suggested",
+        " No — I’ll write it in my own words": "step5_teammate_custom"
+      }
+    },
+    "step5_manager_suggested": {
+      "question_edit": "Hi [Manager's Name], I just wanted to share something I’ve been feeling lately. I’ve been going through a bit of a rough patch at work — mostly related to [issue]. I thought it might help to be open about it. I’m happy to talk more if and when you feel it’s a good time. Thanks for listening. ",
+      "next": "step5_teammate_thank"
+    },
+    "step5_teammate_suggested": {
+      "question_edit": "Hey [Colleague’s Name], I just wanted to share where I’m at lately. Work’s been a bit challenging for me, especially with [mention briefly]. I value our teamwork and just wanted to be honest with you. Thanks for understanding. ",
+      "next": "step5_teammate_thank"
+    },
+    "step5_custom": {
+      "question_edit": "I’d like to anonymously share that I’ve been struggling with [issue]. I hope this feedback helps make the workplace more supportive for myself and others. Thank you. ",
+      "next": "step5_teammate_thank"
+    },
+    "step5_teammate_custom": {
+      "question_edit": "Write your message here...",
+      "next": "step5_teammate_thank"
+    },
+    "step5_teammate_thank": {
+      "messages": [
+        "Thanks for opening up today . What you’re feeling is valid, and taking time to acknowledge it is a powerful first step.",
+        "If you ever want to check in, vent, or just sit with your thoughts — I’m always here.",
+        "In the meantime, if you’d like to take a moment for yourself, here are a few small things might help you reset:",
+        "A short breathing exercise",
+        " Listening to a calming song",
+        "Chair yoga or a desk stretch",
+        "Taking a small break away from your screen",
+        "Talking to a friend or someone you trust",
+        "Take care of yourself, and talk to you soon.  ",
+        "— Your wellbeing chatbot  " 
+      ],
+      "next":"end"
+     
+    }
+  },
+  "Mad": {
+    "step1": {
+      "question": "Sounds like you’re feeling frustrated or irritated right now.That’s completely valid — let’s talk about what’s been bothering you.\n What’s been causing that tension at work?",
+      "options": {
+        "Frustration with manager or leadership decisions": "step2",
+        "Tension or conflict with colleagues": "step2",
+        "Unfair workload or lack of recognition": "step2",
+        "Missed deadlines or miscommunication": "step2",
+        "Frustration with company policies or red tape": "step2",
+        "Feeling stuck or blocked in your work": "step2",
+        "Too much change or unclear direction": "step2",
+        "Infrastructure or facility-related issues": "step2"
+      },
+      "store_as": "mad_reason"
+    },
+    "step2": {
+      "question": "Thanks for telling me that. How long have you been feeling this way?",
+      "options": {
+        "Just today": "step3_dynamic",
+        "A few days": "step3_dynamic",
+        "About a week": "step3_dynamic",
+        "Several weeks": "step3_dynamic",
+        "Months or longer": "step3_dynamic"
+      },
+      "store_as": "mad_duration"
+    },
+    "step3_frustration_with_manager_or_leadership_decisions": {
+      "question": "Leadership challenges can be incredibly frustrating. What’s been the core issue?",
+      "options": {
+        "Lack of transparency or inclusion in decisions ": "step4_f",
+        "Constant changes in direction ": "step4_f",
+        "Disrespectful or dismissive tone ": "step4_f",
+        "No accountability or ownership from leaders ": "step4_f"
+      }
+    },
+    "step4_f": {
+      "question": "When leadership doesn’t feel aligned or responsive, it can really drain morale. What kind of shift would help ease the pressure?",
+      "options": {
+        " More open and transparent communication": "step5",
+        "More trust and autonomy in my role": "step5",
+        "Clearer decision-making or direction ": "step5",
+        "Regular sync-ups or feedback": "step5"
+      }
+    },
+    "step3_tension_or_conflict_with_colleagues": {
+      "question": "Tense team dynamics can really drain your energy. What’s been going on?",
+      "options": {
+        "Frequent disagreements or clashes ": "step4_tc",
+        "Passive-aggressive or disrespectful behaviour ": "step4_tc",
+        "Lack of collaboration or support ": "step4_tc",
+         "Miscommunication or misinterpretation ": "step4_tc"
+      }
+    },
+    "step4_tc": {
+      "question": "Workplace relationships can shape your whole day. What support would help make things smoother with your team?",
+      "options": {
+        " A chance to clear the air or talk it out": "step5",
+        "Clear team norms and accountability": "step5",
+        "Better collaboration or boundaries": "step5",
+        "Space to reset from the tension ": "step5"
+      }
+    },
+    "step3_unfair_workload_or_lack_of_recognition": {
+      "question": "It can feel defeating when your effort isn’t seen or appreciated. What’s bothering you most?",
+      "options": {
+        "Workload feels overwhelming or uneven": "step4_uw",
+        "Others getting credit for my work": "step4_uw",
+        "No feedback or acknowledgement": "step4_uw",
+        "Always the go-to but never the recognized ": "step4_uw"
+      }
+    },
+    "step4_uw": {
+      "question": "When your work goes unrecognized or feels unfair, it’s hard to stay motivated. What change would feel supportive right now?",
+      "options": {
+        "A more balanced or transparent task load": "step5",
+        "Recognition for the work I’m doing": "step5",
+        "Better delegation or ownership sharing": "step5",
+        "Honest feedback on performance": "step5"
+      }
+    },
+    "step3_missed_deadlines_or_miscommunication": {
+      "question": "When things go off-track, it’s natural to feel irritated. What’s been causing that?",
+      "options": {
+        "Goals or expectations not clearly defined": "step4_md",
+        "Waiting on others caused delays": "step4_md",
+        "Misalignment between teams ": "step4_md",
+        "Poor follow-through or response time ": "step4_md"
+      }
+    },
+    "step4_md": {
+      "question": "When projects fall off track, it creates a lot of pressure. What would help things run more smoothly for you?",
+      "options": {
+        " Clearer timelines and planning ": "step5",
+        "Defined responsibilities across teams": "step5",
+        " A shared understanding of goals ": "step5",
+        " More timely updates or check-ins": "step5"
+      }
+    },
+    "step3_frustration_with_company_policies_or_red_tape": {
+      "question": "Sometimes rules or systems can feel like obstacles. What kind of policy is frustrating you?",
+      "options": {
+        "Unclear or inconsistent policies ": "step4_fwc",
+        "Processes that feel outdated or slow": "step4_fwc",
+        "Excessive approvals or bureaucracy ": "step4_fwc",
+        "Lack of flexibility in how things are done": "step4_fwc"
+      }
+    },
+    "step4_fwc": {
+      "question": "Policies and processes are supposed to support us — not hold us back. What kind of change would make them more workable?",
+      "options": {
+        "Simplified or updated processes ": "step5",
+        "More flexibility and trust ": "step5",
+        "Clearer or fairer rules": "step5",
+        "An easier way to give feedback on policies ": "step5"
+      }
+    },
+    "step3_feeling_stuck_or_blocked_in_work": {
+      "question": "Feeling stuck is frustrating — especially when you want to move forward. What’s getting in your way?",
+      "options": {
+        "Waiting on input or decisions": "step4_fso",
+        "No opportunity to use my skills": "step4_fso",
+        "Lack of direction or next steps": "step4_fso",
+        "Low autonomy or control": "step4_fso"
+      }
+    },
+    "step4_fso": {
+      "question": "Feeling blocked can be incredibly demotivating. What kind of support would help you move forward again?",
+      "options": {
+        " Clarity on next steps or goals ": "step5",
+        "Permission to take initiative": "step5",
+        " Support to build new skills": "step5",
+        "Ownership of a new or challenging task": "step5"
+      }
+    },
+    "step3_too_much_change_or_unclear_direction": {
+      "question": "Too much change without clarity can be exhausting. What part of the shift has been most frustrating?",
+      "options": {
+        " Changes not communicated properly": "step4_cud",
+        "Constant shifting of goals or priorities": "step4_cud",
+        "No time to adapt between changes ": "step4_cud",
+         "Feel like I’m always catching up ": "step4_cud"
+      }
+    },
+    "step4_cud": {
+      "question": "Constant change without direction can be exhausting. What would help you feel more anchored right now?",
+      "options": {
+        " Early communication before changes happen ": "step5",
+        "A clear roadmap or direction ": "step5",
+        " More time to adjust and adapt": "step5",
+        "A way to voice concerns without judgment ": "step5"
+      }
+    },
+    "step3_infrastructure_or_facility_related_issues": {
+      "question": "When the physical environment doesn’t support your work, it’s easy to feel irritated. What’s been the issue for you?",
+      "options": {
+        "Broken or malfunctioning equipment": "step4_iof",
+        "Cleanliness or hygiene concerns ": "step4_iof",
+        "Internet/Wi-Fi or tech issues": "step4_iof",
+        "Delays in facility repairs or support": "step4_iof"
+      }
+    },
+     "step4_iof": {
+      "question": "When your tools or environment don’t support your work, it can wear you down. What change would ease that friction?",
+      "options": {
+        " Quicker maintenance or fixes": "step5",
+        " A cleaner or more hygienic environment": "step5",
+        "Better furniture or comfort facilities": "step5",
+        " Stable Wi-Fi or reliable tech": "step5"
+      }
+    },
+    "step5": {
+      "question": "Thanks for opening up. Sometimes it helps to share what you're feeling — whether to create change, or just feel seen.\nWould you like to share this with someone — maybe your manager, a teammate, or anonymously?",
+      "options": {
+        " Share with a teammate or colleague": "step5_t",
+        "Share with my manager or supervisor": "step5_m",
+        "Submit anonymously ": "step5_custom",
+        " No thanks — I just needed to vent": "step5_teammate_thank"
+      }
+    },
+    "step5_t": {
+      "question": "Would you like a ready-to-use message template to help express your frustration? You can edit or write your own.",
+      "options": {
+        "Yes — show me a suggested message": "step5_teammate_suggested",
+        " No — I’ll write it in my own words": "step5_teammate_custom"
+      }
+    },
+    "step5_m": {
+      "question": "Would you like a ready-to-use message template to help express your frustration? You can edit or write your own.",
+      "options": {
+        "Yes — show me a suggested message": "step5_manager_suggested",
+        " No — I’ll write it in my own words": "step5_teammate_custom"
+      }
+    },
+    "step5_manager_suggested": {
+      "question_edit": "Hi [Manager's Name], I wanted to share something that’s been frustrating me recently at work. It’s related to [brief issue – e.g., workload / communication / tools], and I thought being open might help. I’d appreciate a chance to talk or reflect further whenever possible. Thanks for understanding.",
+      "next": "step5_teammate_thank"
+    },
+    "step5_teammate_suggested": {
+      "question_edit": "Hey [Colleague's Name], I just wanted to be honest about something that’s been bothering me. Things have felt a bit frustrating around [mention briefly], and I wanted to share that with you so we can find better ground. Thanks for hearing me out.",
+      "next": "step5_teammate_thank"
+    },
+    "step5_custom": {
+      "question_edit": "I’d like to anonymously share that I’ve been feeling frustrated about [brief issue]. I hope this helps bring attention to the experience and can lead to a smoother work environment. Thank you.",
+      "next": "step5_teammate_thank"
+    },
+    "step5_teammate_custom": {
+      "question_edit": "Write your message here...",
+      "next": "step5_teammate_thank"
+    },
+    "step5_teammate_thank": {
+      "messages": [
+        "Frustration is a real signal — and you taking time to acknowledge it is a powerful thing",
+        "If things still feel unsettled later, you’re always welcome to check back in.",
+        "Meanwhile, if you'd like a moment to reset, here are a few small ideas that might help ease the tension:",
+        " A short breathing or grounding exercise ",
+        " Listening to music that helps you release the mood ",
+        "  A quick walk or break away from your screen",
+        "Talking it out with someone you trust",
+        " Jotting your thoughts down privately ",
+        "Take care of yourself — and I’ll be here if you need to check in again.  ",
+        "— Your wellbeing chatbot  " 
+      ],
+      "next":"end"
+     
+    }
+  }
+}

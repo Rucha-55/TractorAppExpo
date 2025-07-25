@@ -1,29 +1,30 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  StyleSheet, 
-  Text, 
-  View, 
-  TextInput, 
-  TouchableOpacity, 
-  Image, 
-  SafeAreaView,
+import { useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Dimensions,
+  Image,
   KeyboardAvoidingView,
   Platform,
-  Animated,
-  Easing,
-  Dimensions,
-  Alert,
-  ActivityIndicator
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 
 // Firebase imports
-import { initializeApp } from 'firebase/app';
-import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
-import { db, adminLogin } from '../config/firebase';
+import { addDoc, collection, doc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { adminLogin, db } from '../config/firebase';
+
+// Notification imports
+import { registerForPushNotificationsAsync, scheduleFeedbackReminder, setupNotificationListeners } from './utils/notifications';
 
 // Import LogBox to ignore specific warnings
-import { LogBox } from 'react-native';
 import { router } from 'expo-router';
+import { LogBox } from 'react-native';
 
 // Ignore specific warnings
 LogBox.ignoreLogs([
@@ -53,12 +54,28 @@ const showAlert = (title, message) => {
 };
 const { width } = Dimensions.get('window');
 
-// Initialize Firebase with the configuration from config/firebase.js
-
 const LoginScreen = () => {
+  const notificationListener = useRef();
+  const responseListener = useRef();
+
+  useEffect(() => {
+    // Register for push notifications
+    registerForPushNotificationsAsync();
+    
+    // Schedule the first feedback reminder
+    scheduleFeedbackReminder();
+    
+    // Setup notification listeners
+    const cleanup = setupNotificationListeners();
+    
+    // Cleanup on unmount
+    return () => {
+      if (cleanup) cleanup();
+    };
+  }, []);
   const [loginMode, setLoginMode] = useState('employee'); // 'employee' or 'admin'
   const [employeeId, setEmployeeId] = useState('');
-  const [isFocused, setIsFocused] = useState(false);
+  const [isFocusedId, setIsFocusedId] = useState(false);
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [adminLoading, setAdminLoading] = useState(false);
@@ -84,15 +101,9 @@ const LoginScreen = () => {
     ]).start();
   }, []);
 
-  const checkEmployeeExists = async (empId) => {
-    console.log('🔍 Checking employee with ID:', empId);
+  const checkEmployeeCredentials = async (empId) => {
+    console.log('🔍 Checking employee credentials for ID:', empId);
     try {
-      // Validate ID format (EMP followed by numbers)
-      if (!/^EMP\d+$/.test(empId)) {
-        console.log('❌ Invalid employee ID format:', empId);
-        return false;
-      }
-
       // Check if the employee exists in Firestore
       const docRef = doc(db, 'employees', empId);
       console.log('📄 Document reference created for path:', docRef.path);
@@ -103,7 +114,7 @@ const LoginScreen = () => {
       
       if (!exists) {
         console.log(`❌ Employee ${empId} not found in database`);
-        return false;
+        return { success: false, message: 'Employee not found' };
       }
       
       const employeeData = docSnap.data();
@@ -112,52 +123,42 @@ const LoginScreen = () => {
       // Check if the employee is active
       if (employeeData.active === false) {
         console.log('⛔ Employee is inactive:', empId);
-        return false;
+        return { success: false, message: 'Employee account is inactive' };
       }
       
-      return true;
+      return { success: true, employeeData };
     } catch (error) {
-      console.error('🔥 Error checking employee:', {
+      console.error('🔥 Error checking employee credentials:', {
         code: error?.code || 'UNKNOWN_ERROR',
         message: error?.message || 'Unknown error occurred',
         details: error
       });
-      return false;
+      return { success: false, message: 'Error verifying credentials' };
     }
   };
 
   const handleLogin = async () => {
-    const empId = employeeId.trim().toUpperCase();
+    const empId = employeeId.trim();
     console.log('🔑 Attempting login with ID:', empId);
     
     try {
       // Basic validation
       if (!empId) {
         console.log('❌ No employee ID provided');
-        
         showAlert('Error', 'Please enter your employee ID');
-        return;
-      }
-
-      // Validate ID format (EMP followed by numbers)
-      if (!/^EMP\d+$/.test(empId)) {
-        console.log('❌ Invalid employee ID format:', empId);
-      
-        showAlert('Error', 'Invalid employee ID format. Please enter a valid ID (e.g., EMP123)');
         return;
       }
 
       setIsLoading(true);
       
       try {
-        // Check if employee exists
-        console.log('🔍 Verifying employee in database...');
-        const employeeExists = await checkEmployeeExists(empId);
+        // Check employee credentials
+        console.log('🔍 Verifying employee credentials...');
+        const { success, message, employeeData } = await checkEmployeeCredentials(empId);
         
-        if (!employeeExists) {
-          console.log(`❌ Employee ${empId} not found or inactive`);
-      
-          showAlert('Access Denied', 'Employee ID not found or inactive. Please contact support.');
+        if (!success) {
+          console.log(`❌ Login failed: ${message}`);
+          showAlert('Access Denied', message || 'Invalid credentials. Please try again.');
           return;
         }
 
@@ -180,16 +181,12 @@ const LoginScreen = () => {
         const docRef = await addDoc(collection(db, 'employee_logins'), loginData);
         console.log('📝 Login recorded with ID:', docRef.id);
         
-        // Show loading state
-        setIsLoading(true);
-        
         // Add a small delay for better UX
         await new Promise(resolve => setTimeout(resolve, 800));
         
         safeNavigate({ pathname: '/chat', params: { employeeId: empId } });
 
-        
-        // Reset loading state after navigation
+        // Reset form
         setIsLoading(false);
         setEmployeeId('');
         
@@ -209,9 +206,7 @@ const LoginScreen = () => {
           timestamp: new Date().toISOString()
         });
         
-        
         showAlert('Error', 'Unable to process your login. Please check your connection and try again.');
-        
       }
       
     } catch (error) {
@@ -219,7 +214,6 @@ const LoginScreen = () => {
         error: error?.message || 'Unknown error',
         stack: error?.stack
       });
-      
       
       showAlert('Unexpected Error', 'An unexpected error occurred. Please restart the app and try again.');
     } finally {
@@ -271,20 +265,20 @@ const LoginScreen = () => {
         {/* Employee Login Form */}
         {loginMode === 'employee' && (
           <Animated.View style={[styles.loginContainer, containerAnimatedStyle]}>
-            <Text style={styles.title}>Enter Employee ID!</Text>
+            <Text style={styles.title}>Employee Login</Text>
             <View style={styles.inputContainer}>
               <TextInput
                 style={[
                   styles.input,
-                  isFocused && styles.inputFocused
+                  isFocusedId && styles.inputFocused
                 ]}
-                placeholder="Enter employee ID..."
+                placeholder="Employee ID (e.g., 25002110)"
                 value={employeeId}
                 onChangeText={setEmployeeId}
                 placeholderTextColor="#999"
-                autoCapitalize="none"
-                onFocus={() => setIsFocused(true)}
-                onBlur={() => setIsFocused(false)}
+                autoCapitalize="characters"
+                onFocus={() => setIsFocusedId(true)}
+                onBlur={() => setIsFocusedId(false)}
               />
             </View>
             <Animated.View style={buttonAnimatedStyle}>
