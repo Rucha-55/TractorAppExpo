@@ -138,7 +138,7 @@ const LoginScreen = () => {
   };
 
   const handleLogin = async () => {
-    const empId = employeeId.trim();
+    const empId = employeeId.trim().toUpperCase();
     console.log('🔑 Attempting login with ID:', empId);
     
     try {
@@ -272,7 +272,7 @@ const LoginScreen = () => {
                   styles.input,
                   isFocusedId && styles.inputFocused
                 ]}
-                placeholder="Employee ID (e.g., 25002110)"
+                placeholder="Employee ID (e.g., EMP001)"
                 value={employeeId}
                 onChangeText={setEmployeeId}
                 placeholderTextColor="#999"

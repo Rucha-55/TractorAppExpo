@@ -3,130 +3,129 @@
     "step1": {
       "question": "That’s lovely to hear\ud83d\ude0a What’s been lifting your spirits today?\n Would you say your glad feeling today is connected to...",
       "options": {
-        "Accomplishing a task or meeting a deadline": "step2_task",
-        "Appreciation or support from a colleague or manager": "step2_support",
-        "A positive conversation or team interaction": "step2_conversation",
-        "Progress on meaningful work or hitting a milestone": "step2_progress",
-        "Learning something new or exploring an opportunity": "step2_learning",
-        "Having a smooth and balanced workday": "step2_balance",
-        "Experiencing a supportive work culture": "step2_culture",
-        "Feeling good about your growth or career path": "step2_growth"
+        "\u2705Accomplishing a task or meeting a deadline": "step2_task",
+        "\uD83D\uDC4CAppreciation or support from a colleague or manager": "step2_support",
+        "\uD83D\uDCACA positive conversation or team interaction": "step2_conversation",
+        "\uD83C\uDFC6Progress on meaningful work or hitting a milestone": "step2_progress",
+        "\uD83E\uDDE0Learning something new or exploring an opportunity": "step2_learning",
+        "\u2696\uFE0FFeeling good about your growth or career path": "step2_growth"
       },
       "store_as": "glad_reason"
     },
     "step2_task": {
       "question": "That’s always a great feeling! \ud83e\udd1d Was it a task you’d been working on for a while or a quick win that gave you a sense of progress?",
       "options": {
-        "A task I\u2019d been postponing for a while": "step3",
-        "Met a tight deadline just in time": "step3",
-        "Made visible progress on a long project": "step3",
-        "Knocked out something quicker than expected": "step3"
+        "\u2705 A task I\u2019d been postponing for a while": "step3",
+    "\uD83D\uDCAC Met a tight deadline just in time": "step3",
+    "\uD83D\uDCB2 Made visible progress on a long project": "step3",
+    "\u2666 Knocked out something quicker than expected": "step3"
       },
       "store_as": "glad_detail"
     },
     "step2_support": {
       "question": "That’s so uplifting \ud83c\udf1f What kind of appreciation or support did you receive — a kind word, a helpful action, or maybe a thoughtful message?",
       "options": {
-        "Verbal recognition in a meeting or 1-on-1": "step3",
-        "A thoughtful message or thank-you email": "step3",
-        "Public praise or team shoutout": "step3",
-        "A helpful gesture when I needed support": "step3"
+        
+  "💬 Verbal recognition in a meeting or 1-on-1": "step3",
+  "📧 A thoughtful message or thank-you email": "step3",
+  "🏆 Public praise or team shoutout": "step3",
+  "🙌 A helpful gesture when I needed support": "step3"
       },
       "store_as": "glad_detail"
     },
     "step2_conversation": {
-      "question": "Team interactions can make all the difference \ud83e\udd1d What about this conversation or moment stood out for you?",
-      "options": {
-        "We solved a work-related problem together": "step3",
-        "They truly listened and supported me": "step3",
-        "Shared light moments or inside jokes": "step3",
-        "Felt a deeper connection or mutual respect": "step3"
-      },
-      "store_as": "glad_detail"
+    "question": "Team interactions can make all the difference 🤝 What about this conversation or moment stood out for you?",
+    "options": {
+      "💡 We solved a work-related problem together": "step3",
+      "🤗 They truly listened and supported me": "step3",
+      "😂 Shared light moments or inside jokes": "step3",
+      "🤝 Felt a deeper connection or mutual respect": "step3"
     },
-    "step2_progress": {
-      "question": "Progress on work that matters feels so rewarding personal win, or something that brought clarity?",
-      "options": {
-        "Completed a tough phase of a project": "step3",
-        "Hit a goal I\u2019ve been aiming for": "step3",
-        "Got clarity on a project\u2019s direction": "step3",
-        "Felt like my work had purpose today": "step3"
-      },
-      "store_as": "glad_detail"
+    "store_as": "glad_detail"
+  },
+  "step2_progress": {
+    "question": "Progress on work that matters feels so rewarding 🌀 Was it a project milestone, a personal win, or something that brought clarity?",
+    "options": {
+      "✳️ Completed a tough phase of a project": "step3",
+      "📘 Hit a goal I’ve been aiming for": "step3",
+      "🕰️ Got clarity on a project’s direction": "step3",
+      "🧠 Felt like my work had purpose today": "step3"
     },
+    "store_as": "glad_detail"
+  },
     "step2_learning": {
       "question": "Growth always sparks energy!Was it about learning a new skill, being trusted with something new, or stepping into a fresh opportunity?",
       "options": {
-        "Learned a new tool or skill": "step3",
-        "Got mentored or guided by someone": "step3",
-        "Took on something outside my comfort zone": "step3",
-        "Trusted with new responsibility or role": "step3"
+        "📚 Learned a new tool or skill": "step3",
+        "🧑‍🤝‍🧑 Got mentored or guided by someone": "step3",
+        "🧗‍♂️ Took on something outside my comfort zone": "step3",
+        "🎯 Trusted with new responsibility or role": "step3"
       },
       "store_as": "glad_detail"
     },
     "step2_balance": {
       "question": "Balance is such a win What helped make your day feel smooth — fewer interruptions, managing time well, or just good headspace?",
       "options": {
-        "Fewer or no meetings today": "step3",
-        "Calm focus \u2014 minimal distractions": "step3",
-        "Clear priorities, no overthinking": "step3",
-        "Took small breaks that helped regulate my energy": "step3"
+        "📅 Fewer or no meetings today": "step3",
+        "🧘 Calm focus — minimal distractions": "step3",
+        "🗂️ Clear priorities, no overthinking": "step3",
+        "😌 Took small breaks that helped regulate my energy": "step3"
       },
       "store_as": "glad_detail"
     },
     "step2_culture": {
       "question": "That’s wonderful to hear What part of the culture felt supportive today — teamwork, inclusion, flexibility, or just a positive vibe?",
       "options": {
-        "Team collaboration felt easy and respectful": "step3",
-        "Felt heard and included": "step3",
-        "Flexibility around how or when I worked": "step3",
-        "Leaders or peers checked in meaningfully": "step3"
+        "🌞 Team collaboration felt easy and respectful": "step3",
+        "🟣 Felt heard and included": "step3",
+        "⏳ Flexibility around how or when I worked": "step3",
+        "💬 Leaders or peers checked in meaningfully": "step3"
       },
       "store_as": "glad_detail"
     },
     "step2_growth": {
       "question": "That’s inspiring  Was it a new responsibility, feedback you received, or something that reminded you you’re moving in the right direction?",
       "options": {
-        "Took on a stretch task or new challenge": "step3",
-        "Feedback reminded me of my progress": "step3",
-        "Gained clarity about my path or goals": "step3",
-        "Recognized for how far I\u2019ve come": "step3"
+        "🧗‍♂️ Took on a stretch task or new challenge": "step3",
+        "💬 Feedback reminded me of my progress": "step3",
+        "🧭 Gained clarity about my path or goals": "step3",
+        "🏅 Recognized for how far I’ve come": "step3"
       },
       "store_as": "glad_detail"
     },
     "step3": {
       "question": "Do you feel like this experience had any impact on your work or mindset today?",
       "options": {
-        "Yes \u2014 I felt more focused or productive": "step4",
-        "It lifted my mood and helped me stay positive": "step4",
-        "It didn\u2019t change much, but it was still nice": "step4",
-        "Not sure yet, but maybe it will": "step4"
+        "🚀 Yes — I felt more focused or productive": "step4",
+        "😊 It lifted my mood and helped me stay positive": "step4",
+        "🧊 It didn’t change much, but it was still nice": "step4",
+        "🤔 Not sure yet, but maybe it will": "step4"
       },
       "store_as": "glad_impact"
     },
     "step4": {
       "question": "Even small moments can be worth acknowledging. Would you like to share this with someone — or keep it just for yourself for now?",
       "options": {
-        " Yes — I’d like to share it with a teammate or colleague ": "step5_t",
-        "Yes — I’d like to share it with my manager or supervisor ": "step5_m",
-        "No — I’ll write it in my own words": "step5_teammate_custom",
-        "No, I’m good — just needed to reflect": "step6"
+        "👥 Yes — I’d like to share it with a teammate or colleague": "step5_t",
+        "🎯 Yes — I’d like to share it with my manager or supervisor": "step5_m",
+        "✍️ I’d like to write a message in my own words": "step5_teammate_custom",
+        "❌ No, I’m good — just needed to reflect": "step6"
       },
       "store_as": "glad_share_intent"
     },
     "step5_t": {
       "question": "Would you like a message template to help you share this moment? You can edit it or write your own too.",
       "options": {
-        "Yes — show me a suggested message": "step5_teammate_suggested",
-        " No — I’ll write it in my own words": "step5_teammate_custom"
+        "📝 Yes — show me a suggested message ": "step5_teammate_suggested",
+        "✍️ No — I’ll write it in my own words ": "step5_teammate_custom"
       },
       "store_as": "glad_share_intent"
     },
     "step5_m": {
       "question": "Would you like a message template to help you share this moment? You can edit it or write your own too.",
       "options": {
-        "Yes — show me a suggested message": "step5_manager_suggested",
-        " No — I’ll write it in my own words": "step5_teammate_custom"
+        "📝 Yes — show me a suggested message ": "step5_manager_suggested",
+        "✍️ No — I’ll write it in my own words ": "step5_teammate_custom"
       },
       "store_as": "glad_share_intent"
     },
@@ -139,7 +138,7 @@
       "next": "step5_teammate_thank"
     },
     "step5_teammate_custom": {
-      "question_edit": "Write your message here...",
+      "question_edit": " ",
       "next": "step5_teammate_thank"
     },
     "step5_teammate_thank": {
@@ -158,10 +157,10 @@
     "step7": {
       "question": "Would you like to take this moment further in any way?",
       "options": {
-        " Jot this down to remember later ": "step8",
-        "Turn it into a mini goal or affirmation": "step8",
-        "Celebrate this win with a small reward ": "step8",
-        "No thanks — I’m good for now ": "step8"
+        "✍️ Jot this down to remember later ": "step8",
+        "🎯Turn it into a mini goal or affirmation": "step8",
+        "🎉Celebrate this win with a small reward ": "step8",
+        "❌No thanks — I’m good for now ": "step8"
       }
     },
     "step8": {
@@ -180,36 +179,36 @@
   },
   "Sad": {
     "step1": {
-      "question": "’m really sorry to hear you’re feeling low today.sometimes, and it’s okay to talk about it.\nEveryone has tough days Can you tell me what’s weighing on you at work right now?",
+      "question": "I’m really sorry to hear you’re feeling low today.sometimes, and it’s okay to talk about it.\nEveryone has tough days Can you tell me what’s weighing on you at work right now?",
       "options": {
-        "Manager-related challenges": "step2",
-        "Difficult interactions with colleagues": "step2",
-        "Company culture or policies": "step2",
-        "Lack of role clarity or direction": "step2",
-        "Workspace, tools, or infrastructure issues": "step2",
-        "Struggling with work-life balance": "step2",
-        "Feeling emotionally exhausted or overwhelmed": "step2"
+        "‍💼 Manager-related challenges": "step2",
+        "👥 Difficult interactions with colleagues": "step2", 
+        " Company culture or policies": "step2",
+        "❓ Lack of role clarity or direction": "step2",
+        "️ Workspace, tools, or infrastructure issues": "step2",
+        "⚖️ Struggling with work-life balance": "step2",
+        "😔 Feeling emotionally exhausted or overwhelmed": "step2"
       },
       "store_as": "sad_reason"
     },
     "step2": {
       "question": "Thanks for letting me know. Just so I can understand a bit better — how long have you been feeling this way?",
       "options": {
-        "Just today": "step3_dynamic",
-        "A few days": "step3_dynamic",
-        "About a week": "step3_dynamic",
-        "Several weeks": "step3_dynamic",
-        "Months or longer": "step3_dynamic"
+        "📅 Just today": "step3_dynamic",
+        "📅 A few days": "step3_dynamic",
+        "🕒 About a week": "step3_dynamic",
+        "📅 Several weeks": "step3_dynamic",
+        "📅 Months or longer": "step3_dynamic"
       },
       "store_as": "sad_duration"
     },
     "step3_manager_related_challenges": {
       "question": "That can be really tough.What kind of challenge are you facing with your manager right now?",
       "options": {
-        "I don’t feel heard or understood": "step4_m",
-        "Lack of support or feedback ": "step4_m",
-        "Expectations keep changing ": "step4_m",
-        "Communication feels distant ": "step4_m"
+        "🗣️ I don’t feel heard or understood": "step4_m",
+        "🫱 Lack of support or feedback": "step4_m",
+        "🔄 Expectations keep changing": "step4_m",
+        "📡 Communication feels distant": "step4_m"
       }
     },
     "step4_m": {
@@ -224,10 +223,10 @@
     "step3_difficult_interactions_with_colleagues": {
       "question": "I’m sorry you’re going through that.What’s been happening with your colleagues?",
       "options": {
-        " Conflict or misunderstanding": "step4_c",
-        "Feeling excluded or ignored": "step4_c",
-        "Poor collaboration ": "step4_c",
-        "Communication breakdowns": "step4_c"
+        "🗣️ Frequent disagreements or clashes": "step4_c",
+        "❌ Passive-aggressive or disrespectful behaviour": "step4_c",
+        "🌟 Lack of collaboration or support": "step4_c",
+        "💬 Miscommunication or misinterpretation": "step4_c"
       }
     },
     "step4_c": {
@@ -239,13 +238,13 @@
         " A little space to reset the dynamic ": "step5"
       }
     },
-    "step3_company_culture": {
+    "step3_company_culture_or_policies": {
       "question": "That’s frustrating.What part of the culture or policy is affecting you?",
       "options": {
-        "Negative environment": "step4_cc",
-        "Rigid/unfair policies ": "step4_cc",
-        "Lack of transparency": "step4_cc",
-        "Micromanagement": "step4_cc"
+        "😞 Negative environment": "step4_cc",
+        "🧱 Rigid/unfair policies": "step4_cc",
+        "🕵️ Lack of transparency": "step4_cc",
+        "🕹️ Micromanagement": "step4_cc"
       }
     },
     "step4_cc": {
@@ -257,13 +256,13 @@
         "Better alignment with company values": "step5"
       }
     },
-    "step3_role_clarity": {
+    "step3_lack_of_role_clariy_or_direction": {
       "question": "Feeling unsure about your role can be unsettling.What’s been unclear or confusing for you?",
       "options": {
-        "Unclear responsibilities ": "step4_rc",
-        "Constantly shifting role": "step4_rc",
-        "No growth path": "step4_rc",
-        "No goals or expectations ": "step4_rc"
+        "📝 Unclear `responsibilities": "step4_rc",
+        "🔄 Constantly shifting role": "step4_rc",
+        "🚫 No growth path": "step4_rc",
+        "🎯 No goals or expectations": "step4_rc"
       }
     },
    "step4_rc": {
@@ -275,13 +274,13 @@
         "Mentoring or guidance for career direction": "step5"
       }
     },
-    "step3_work_life_balance": {
+    "step3_struggling_with_work_life_balance": {
       "question": "Balance can be really hard to maintain. What’s making it difficult right now?",
       "options": {
-        "Always on or long hours": "step4_w",
-        "No clear boundaries ": "step4_w",
-        "Overloaded with tasks": "step4_w",
-        "Constant fatigue": "step4_w"
+        "⏰ Always on or long hours": "step4_w",
+        "🚧 No clear boundaries": "step4_w",
+        "📋 Overloaded with tasks": "step4_w",
+        "😩 Constant fatigue": "step4_w"
       }
     },
     "step4_w": {
@@ -293,13 +292,13 @@
         "Clearer boundaries or task prioritization": "step5"
       }
     },
-    "step3_emotional_exhaustion": {
+    "step3_feeling_emotionally_exhausted_or_overwhelmed": {
       "question": "That sounds heavy. What’s contributing to this feeling of burnout or stress?",
       "options": {
-        "High pressure or workload": "step4_ee",
-        "No emotional support": "step4_ee",
-        "Isolation": "step4_ee",
-        "Can’t be authentic at work ": "step4_ee"
+        "💼 High pressure or workload": "step4_ee",
+        "😔 No emotional support": "step4_ee",
+        "🏝️ Isolation": "step4_ee",
+        "🎭 Can’t be authentic at work": "step4_ee"
       }
     },
     "step4_ee": {
@@ -314,10 +313,10 @@
     "step3_workspace_tools_or_infrastructure_issues": {
       "question": "Your environment impacts how you feel.What issues are you facing?  ",
       "options": {
-        "Poor hygiene or cleanliness": "step4_wi",
-        "Tools/systems not working ": "step4_wi",
-        "Uncomfortable workspace ": "step4_wi",
-        "No support when things break": "step4_wi"
+        "🧹 Poor hygiene or cleanliness": "step4_wi",
+        "🛠️ Tools/systems not working": "step4_wi",
+        "💺 Uncomfortable workspace": "step4_wi",
+        "🆘 No support when things break": "step4_wi"
       }
     },
     "step4_wi": {
@@ -341,15 +340,15 @@
     "step5_t": {
       "question": "Would you like a ready-to-use message template to help you express how you’re feeling? You can customize or write your own if you prefer",
       "options": {
-        "Yes — show me a suggested message": "step5_teammate_suggested",
-        " No — I’ll write it in my own words": "step5_teammate_custom"
+        "📝 Yes — show me a suggested message ": "step5_teammate_suggested",
+        "✍️ No — I’ll write it in my own words ": "step5_teammate_custom"
       }
     },
     "step5_m": {
       "question": "“Would you like a ready-to-use message template to help you express how you’re feeling? You can customize or write your own if you prefer",
       "options": {
-        "Yes — show me a suggested message": "step5_manager_suggested",
-        " No — I’ll write it in my own words": "step5_teammate_custom"
+        "📝 Yes — show me a suggested message ": "step5_manager_suggested",
+        "✍️ No — I’ll write it in my own words ": "step5_teammate_custom"
       }
     },
     "step5_manager_suggested": {
@@ -365,21 +364,17 @@
       "next": "step5_teammate_thank"
     },
     "step5_teammate_custom": {
-      "question_edit": "Write your message here...",
+      "question_edit": " ",
       "next": "step5_teammate_thank"
     },
     "step5_teammate_thank": {
       "messages": [
-        "Thanks for opening up today . What you’re feeling is valid, and taking time to acknowledge it is a powerful first step.",
+        "Thanks for opening up today. What you’re feeling is valid, and taking time to acknowledge it is a powerful first step.",
         "If you ever want to check in, vent, or just sit with your thoughts — I’m always here.",
-        "In the meantime, if you’d like to take a moment for yourself, here are a few small things might help you reset:",
-        "A short breathing exercise",
-        " Listening to a calming song",
-        "Chair yoga or a desk stretch",
-        "Taking a small break away from your screen",
-        "Talking to a friend or someone you trust",
-        "Take care of yourself, and talk to you soon.  ",
-        "— Your wellbeing chatbot  " 
+        "In the meantime, if you’d like to take a moment for yourself, here are a few ideas that might help you reset:",
+        "Suggestions:\n- 🧘‍♂️ A short breathing exercise\n- 🎵 Listening to a calming song\n- 🪑 Chair yoga or a desk stretch\n- 🧋 Taking a small break away from your screen\n- 📞 Talking to a friend or someone you trust",
+        "Take care of yourself, and talk to you soon. 💛",
+        "— Your wellbeing chatbot 🤖"
       ],
       "next":"end"
      
@@ -387,37 +382,37 @@
   },
   "Mad": {
     "step1": {
-      "question": "Sounds like you’re feeling frustrated or irritated right now.That’s completely valid — let’s talk about what’s been bothering you.\n What’s been causing that tension at work?",
+      "question": "Sounds like you're feeling frustrated or irritated right now.That's completely valid — let's talk about what's been bothering you.\n What's been causing that tension at work?",
       "options": {
-        "Frustration with manager or leadership decisions": "step2",
-        "Tension or conflict with colleagues": "step2",
-        "Unfair workload or lack of recognition": "step2",
-        "Missed deadlines or miscommunication": "step2",
-        "Frustration with company policies or red tape": "step2",
-        "Feeling stuck or blocked in your work": "step2",
-        "Too much change or unclear direction": "step2",
-        "Infrastructure or facility-related issues": "step2"
+        "😤 Frustration with manager or leadership decisions": "step2",
+        "⚔️ Tension or conflict with colleagues": "step2",
+        "⚖️ Unfair workload or lack of recognition": "step2",
+        "⏰ Missed deadlines or miscommunication": "step2",
+        "📋 Frustration with company policies or red tape": "step2",
+        "🚫 Feeling stuck or blocked in your work": "step2",
+        "🔄 Too much change or unclear direction": "step2",
+        "🔧 Infrastructure or facility-related issues": "step2"
       },
       "store_as": "mad_reason"
     },
     "step2": {
       "question": "Thanks for telling me that. How long have you been feeling this way?",
       "options": {
-        "Just today": "step3_dynamic",
-        "A few days": "step3_dynamic",
-        "About a week": "step3_dynamic",
-        "Several weeks": "step3_dynamic",
-        "Months or longer": "step3_dynamic"
+        "📅 Just today": "step3_dynamic",
+        "📅 A few days": "step3_dynamic",
+        "🕒 About a week": "step3_dynamic",
+        "📅 Several weeks": "step3_dynamic",
+        "📅 Months or longer": "step3_dynamic"
       },
       "store_as": "mad_duration"
     },
     "step3_frustration_with_manager_or_leadership_decisions": {
       "question": "Leadership challenges can be incredibly frustrating. What’s been the core issue?",
       "options": {
-        "Lack of transparency or inclusion in decisions ": "step4_f",
-        "Constant changes in direction ": "step4_f",
-        "Disrespectful or dismissive tone ": "step4_f",
-        "No accountability or ownership from leaders ": "step4_f"
+        "🫧 Lack of transparency or inclusion in decisions": "step4_f",
+        "🧭 Constant changes in direction": "step4_f",
+        "🫥 Disrespectful or dismissive tone": "step4_f",
+        "⛔ No accountability or ownership from leaders": "step4_f"
       }
     },
     "step4_f": {
@@ -432,10 +427,10 @@
     "step3_tension_or_conflict_with_colleagues": {
       "question": "Tense team dynamics can really drain your energy. What’s been going on?",
       "options": {
-        "Frequent disagreements or clashes ": "step4_tc",
-        "Passive-aggressive or disrespectful behaviour ": "step4_tc",
-        "Lack of collaboration or support ": "step4_tc",
-         "Miscommunication or misinterpretation ": "step4_tc"
+        "🗣️ Frequent disagreements or clashes": "step4_tc",
+        "❌ Passive-aggressive or disrespectful behaviour": "step4_tc",
+        "🌟 Lack of collaboration or support": "step4_tc",
+        "💬 Miscommunication or misinterpretation": "step4_tc"
       }
     },
     "step4_tc": {
@@ -450,10 +445,10 @@
     "step3_unfair_workload_or_lack_of_recognition": {
       "question": "It can feel defeating when your effort isn’t seen or appreciated. What’s bothering you most?",
       "options": {
-        "Workload feels overwhelming or uneven": "step4_uw",
-        "Others getting credit for my work": "step4_uw",
-        "No feedback or acknowledgement": "step4_uw",
-        "Always the go-to but never the recognized ": "step4_uw"
+        "⚖️ Workload feels overwhelming or uneven": "step4_uw",
+        "👥 Others getting credit for my work": "step4_uw",
+        "🚫 No feedback or acknowledgement": "step4_uw",
+        "📘 Always the go-to but never the recognized": "step4_uw"
       }
     },
     "step4_uw": {
@@ -468,10 +463,10 @@
     "step3_missed_deadlines_or_miscommunication": {
       "question": "When things go off-track, it’s natural to feel irritated. What’s been causing that?",
       "options": {
-        "Goals or expectations not clearly defined": "step4_md",
-        "Waiting on others caused delays": "step4_md",
-        "Misalignment between teams ": "step4_md",
-        "Poor follow-through or response time ": "step4_md"
+        "⏰ Goals or expectations not clearly defined": "step4_md",
+        "🗓️ Waiting on others caused delays": "step4_md",
+        "🫥 Misalignment between teams": "step4_md",
+        "✏️ Poor follow-through or response time": "step4_md"
       }
     },
     "step4_md": {
@@ -486,10 +481,10 @@
     "step3_frustration_with_company_policies_or_red_tape": {
       "question": "Sometimes rules or systems can feel like obstacles. What kind of policy is frustrating you?",
       "options": {
-        "Unclear or inconsistent policies ": "step4_fwc",
-        "Processes that feel outdated or slow": "step4_fwc",
-        "Excessive approvals or bureaucracy ": "step4_fwc",
-        "Lack of flexibility in how things are done": "step4_fwc"
+        "📄 Unclear or inconsistent policies": "step4_fwc",
+        "🔴 Processes that feel outdated or slow": "step4_fwc",
+        "🌀 Excessive approvals or bureaucracy": "step4_fwc",
+        "🚫 Lack of flexibility in how things are done": "step4_fwc"
       }
     },
     "step4_fwc": {
@@ -501,13 +496,13 @@
         "An easier way to give feedback on policies ": "step5"
       }
     },
-    "step3_feeling_stuck_or_blocked_in_work": {
+    "step3_feeling_stuck_or_blocked_in_your_work": {
       "question": "Feeling stuck is frustrating — especially when you want to move forward. What’s getting in your way?",
       "options": {
-        "Waiting on input or decisions": "step4_fso",
-        "No opportunity to use my skills": "step4_fso",
-        "Lack of direction or next steps": "step4_fso",
-        "Low autonomy or control": "step4_fso"
+        "⏳ Waiting on input or decisions": "step4_fso",
+        "🚫 No opportunity to use my skills": "step4_fso",
+        "🛑 Lack of direction or next steps": "step4_fso",
+        "🔒 Low autonomy or control": "step4_fso"
       }
     },
     "step4_fso": {
@@ -522,10 +517,10 @@
     "step3_too_much_change_or_unclear_direction": {
       "question": "Too much change without clarity can be exhausting. What part of the shift has been most frustrating?",
       "options": {
-        " Changes not communicated properly": "step4_cud",
-        "Constant shifting of goals or priorities": "step4_cud",
-        "No time to adapt between changes ": "step4_cud",
-         "Feel like I’m always catching up ": "step4_cud"
+        "🧭 Changes not communicated properly": "step4_cud",
+        "🗓️ Constant shifting of goals or priorities": "step4_cud",
+        "🫥 No time to adapt between changes": "step4_cud",
+         "😓 Feel like I’m always catching up": "step4_cud"
       }
     },
     "step4_cud": {
@@ -540,10 +535,10 @@
     "step3_infrastructure_or_facility_related_issues": {
       "question": "When the physical environment doesn’t support your work, it’s easy to feel irritated. What’s been the issue for you?",
       "options": {
-        "Broken or malfunctioning equipment": "step4_iof",
-        "Cleanliness or hygiene concerns ": "step4_iof",
-        "Internet/Wi-Fi or tech issues": "step4_iof",
-        "Delays in facility repairs or support": "step4_iof"
+        "🛠️ Broken or malfunctioning equipment": "step4_iof",
+        "🌸 Cleanliness or hygiene concerns": "step4_iof",
+        "🌐 Internet/Wi-Fi or tech issues": "step4_iof",
+        "🔴 Delays in facility repairs or support": "step4_iof"
       }
     },
      "step4_iof": {
@@ -567,15 +562,15 @@
     "step5_t": {
       "question": "Would you like a ready-to-use message template to help express your frustration? You can edit or write your own.",
       "options": {
-        "Yes — show me a suggested message": "step5_teammate_suggested",
-        " No — I’ll write it in my own words": "step5_teammate_custom"
+        "📝 Yes — show me a suggested message ": "step5_teammate_suggested",
+        "✍️ No — I’ll write it in my own words ": "step5_teammate_custom"
       }
     },
     "step5_m": {
       "question": "Would you like a ready-to-use message template to help express your frustration? You can edit or write your own.",
       "options": {
-        "Yes — show me a suggested message": "step5_manager_suggested",
-        " No — I’ll write it in my own words": "step5_teammate_custom"
+        "📝 Yes — show me a suggested message ": "step5_manager_suggested",
+        "✍️ No — I’ll write it in my own words ": "step5_teammate_custom"
       }
     },
     "step5_manager_suggested": {
@@ -591,7 +586,7 @@
       "next": "step5_teammate_thank"
     },
     "step5_teammate_custom": {
-      "question_edit": "Write your message here...",
+      "question_edit": " ",
       "next": "step5_teammate_thank"
     },
     "step5_teammate_thank": {

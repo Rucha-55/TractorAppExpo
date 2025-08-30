@@ -1,13 +1,13 @@
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
-import { useColorScheme } from '@/hooks/useColorScheme';
 import { useEffect, useState } from 'react';
+import { ActivityIndicator, LogBox, StyleSheet, Text, View } from 'react-native';
+import 'react-native-reanimated';
 import { db } from '../config/firebase';
-import { LogBox } from 'react-native';
+import NotificationService from '../services/NotificationService';
 
 // Ignore specific warnings
 LogBox.ignoreLogs([
@@ -59,6 +59,22 @@ export default function RootLayout() {
     initializeFirebase();
   }, []);
 
+  // Initialize notifications when app starts
+  useEffect(() => {
+    const initializeNotifications = async () => {
+      try {
+        await NotificationService.initializeNotifications();
+        console.log('Notification service initialized');
+      } catch (error) {
+        console.error('Error initializing notifications:', error);
+      }
+    };
+
+    if (firebaseInitialized) {
+      initializeNotifications();
+    }
+  }, [firebaseInitialized]);
+
   // Show loading state while fonts and Firebase are initializing
   if (!fontsLoaded || !firebaseInitialized) {
     return <LoadingFallback />;
@@ -78,6 +94,7 @@ export default function RootLayout() {
           <Stack.Screen name="chat" />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="+not-found" />
+          <Stack.Screen name="notification-test" />
         </Stack>
       </View>
     </ThemeProvider>

@@ -1,13 +1,17 @@
 import { MaterialIcons } from '@expo/vector-icons';
+import * as Font from 'expo-font';
+import { Image as ExpoImage } from 'expo-image';
 import * as Notifications from 'expo-notifications';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { addDoc, collection, doc, getDoc, getDocs, increment, orderBy, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, increment, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
 import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
+  AppState,
   Dimensions,
   Image,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   SafeAreaView,
@@ -23,6 +27,44 @@ import mdojoFullFlow from './mdojo_full_flow.json';
 
 const { width, height } = Dimensions.get('window');
 
+// Custom component to render text with larger emojis
+const EmojiText = ({ children, style, emojiSize = 24 }) => {
+  // Regex to match emoji characters
+  const emojiRegex = /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/u;
+  
+  if (typeof children !== 'string') {
+    return <Text style={style}>{children}</Text>;
+  }
+  
+  const parts = children.split(/([\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}])/u);
+  
+  return (
+    <Text style={[style, { 
+      lineHeight: emojiSize + 12,
+      includeFontPadding: false,
+      textAlignVertical: 'center'
+    }]}>
+      {parts.map((part, index) => {
+        if (emojiRegex.test(part)) {
+          return (
+            <Text key={index} style={[style, { 
+              fontSize: emojiSize,
+              lineHeight: emojiSize + 8,
+              includeFontPadding: false,
+              textAlignVertical: 'center',
+              marginTop: Platform.OS === 'android' ? -2 : 0,
+              marginBottom: Platform.OS === 'android' ? -2 : 0,
+            }]}>
+              {part}
+            </Text>
+          );
+        }
+        return part;
+      })}
+    </Text>
+  );
+};
+
 const CHAT_STATES = {
   MOOD_SELECTION: 'MOOD_SELECTION',
   FOLLOW_UP: 'FOLLOW_UP',
@@ -35,9 +77,9 @@ const CHAT_STATES = {
 };
 
 const MOODS = [
-  { id: 'glad', label: 'Glad 😊!', emoji: '😊', color: '#E31937' },
-  { id: 'sad', label: 'Sad 😢!', emoji: '😢', color: '#E31937' },
-  { id: 'mad', label: 'Mad 😠!', emoji: '😠', color: '#E31937' }
+  { id: 'glad', label: 'Glad!', gif: require('../assets/images/glad.gif'), color: '#E31937' },
+  { id: 'sad', label: 'Sad!', gif: require('../assets/images/sad.gif'), color: '#E31937' },
+  { id: 'mad', label: 'Mad!', gif: require('../assets/images/mad.gif'), color: '#E31937' }
 ];
 
 export async function scheduleFeedbackReminder() {
@@ -96,6 +138,7 @@ const ChatScreen = () => {
 
   const thirdScrollRef = useRef(null);
   const fourthScrollRef = useRef(null);
+  const editTextInputRef = useRef(null);
   const [editText, setEditText] = useState('');
   const [showEditText, setShowEditText] = useState(false);
   const [editTextPlaceholder, setEditTextPlaceholder] = useState('');
@@ -106,92 +149,754 @@ const ChatScreen = () => {
   const [conversationResponses, setConversationResponses] = useState([]);
   const [showEndPopup, setShowEndPopup] = useState(false);
   const router = useRouter();
+  const [qaPairs, setQaPairs] = useState([]);
+  const [visibleOptions, setVisibleOptions] = useState([]);
+  const [showOptionsSequentially, setShowOptionsSequentially] = useState(false);
+  const [showThinkingDots, setShowThinkingDots] = useState(false);
+  const [showVideo, setShowVideo] = useState(true);
+  const [gifLoadError, setGifLoadError] = useState(false);
+  const [gifLoading, setGifLoading] = useState(true);
+  const [useExpoImage, setUseExpoImage] = useState(true);
+  const [gifAnimationEnabled, setGifAnimationEnabled] = useState(true);
+  const [gifRefreshKey, setGifRefreshKey] = useState(0);
+
+  // Inactivity timer states
+  const [showInactivityPrompt, setShowInactivityPrompt] = useState(false);
+  const inactivityTimerRef = useRef(null);
+  const inactivityPromptRef = useRef(null);
+  const [isChatFullyLoaded, setIsChatFullyLoaded] = useState(false);
+  const [fontsLoaded, setFontsLoaded] = useState(false);
 
   const normalizeKey = (str) => str.toLowerCase().replace(/[^a-z0-9]+/g, '_');
 
+  // Function to strip emojis from text for key generation
+  const stripEmojis = (str) => {
+    // Remove invisible characters, zero-width spaces, and other problematic characters first
+    let cleaned = str.replace(/[\u200B-\u200D\uFEFF]/g, ''); // Remove zero-width characters
+    cleaned = cleaned.replace(/[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, ''); // Remove emojis
+    return cleaned.trim();
+  };
+
+  // Function to normalize key from text with emojis
+  const normalizeKeyFromEmojiText = (str) => {
+    console.log('[DEBUG] Original option text:', str);
+    const strippedText = stripEmojis(str);
+    console.log('[DEBUG] Stripped text:', strippedText);
+    const normalizedKey = normalizeKey(strippedText);
+    console.log('[DEBUG] Normalized key:', normalizedKey);
+    return normalizedKey;
+  };
+
+  // Function to start inactivity timer
+  const startInactivityTimer = () => {
+    // Don't start timer if chat is completed
+    if (chatState === CHAT_STATES.THANK_YOU) {
+      console.log('[INACTIVITY] Not starting timer - chat completed:', { chatState, platform: Platform.OS });
+      return;
+    }
+    
+    // Set chat as fully loaded if not already
+    if (!isChatFullyLoaded) {
+      setIsChatFullyLoaded(true);
+    }
+    
+    console.log('[INACTIVITY] Starting inactivity timer for 20 seconds on', Platform.OS, { chatState, isChatFullyLoaded });
+    
+    // Clear existing timer
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+    }
+    
+    // Clear existing prompt
+    if (inactivityPromptRef.current) {
+      clearTimeout(inactivityPromptRef.current);
+    }
+    
+    setShowInactivityPrompt(false);
+    
+    // Start new timer for 20 seconds (change this value to adjust the timer)
+    inactivityTimerRef.current = setTimeout(() => {
+      // Don't show prompt if chat is completed
+      if (chatState === CHAT_STATES.THANK_YOU) {
+        console.log('[INACTIVITY] Not showing prompt - chat completed on', Platform.OS);
+        return;
+      }
+      console.log('[INACTIVITY] Showing inactivity prompt on', Platform.OS);
+      setShowInactivityPrompt(true);
+    }, 20000); // 20 seconds for inactivity prompt
+  };
+
+
+
+  // Function to reset inactivity timer
+  const resetInactivityTimer = () => {
+    console.log('[INACTIVITY] Resetting inactivity timer');
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+    }
+    if (inactivityPromptRef.current) {
+      clearTimeout(inactivityPromptRef.current);
+    }
+    setShowInactivityPrompt(false);
+    startInactivityTimer();
+  };
+
+  // Function to handle inactivity prompt tap
+  const handleInactivityPromptTap = () => {
+    setShowInactivityPrompt(false);
+    resetInactivityTimer();
+  };
+
+  // Reset timer on user interactions (but not during restore)
   useEffect(() => {
-    const fetchUserNameAndGreet = async () => {
-      let nameToShow = 'User';
-      if (loggedInEmployeeId) {
-        try {
-          const userDoc = await getDoc(doc(db, 'employees', loggedInEmployeeId));
-          if (userDoc.exists()) {
-            nameToShow = userDoc.data().name || 'User';
+    // Only reset timer if we have messages and chat is active, and not during initial load
+    // But don't reset on every message/state change - only on actual user interactions
+    if (messages.length > 0 && chatState !== CHAT_STATES.THANK_YOU && isChatFullyLoaded) {
+      // Don't auto-reset timer on message changes - only on user interactions
+      console.log('[INACTIVITY] Timer active but not resetting on message/state change');
+    }
+  }, [messages.length, chatState, isChatFullyLoaded]);
+
+  // Reset timer when user types in elaboration
+  useEffect(() => {
+    if (elaboration.length > 0 && chatState === CHAT_STATES.ELABORATION) {
+      resetInactivityTimer();
+    }
+  }, [elaboration, chatState]);
+
+  // Reset timer when user types in edit text
+  useEffect(() => {
+    if (editText.length > 0 && showEditText) {
+      resetInactivityTimer();
+    }
+  }, [editText, showEditText]);
+
+  // Start inactivity timer after chat is fully loaded and stable
+  useEffect(() => {
+    // Only start timer if we have a logged in user and the chat is in a stable state
+    if (loggedInEmployeeId && messages.length > 0 && chatState !== CHAT_STATES.THANK_YOU) {
+      // Add a small delay to ensure everything is stable
+      const timer = setTimeout(() => {
+        console.log('[INACTIVITY] Starting timer after chat is stable on', Platform.OS);
+        setIsChatFullyLoaded(true);
+        startInactivityTimer();
+      }, 1000); // 1 second delay to ensure reload is complete
+      
+      return () => clearTimeout(timer);
+    }
+  }, [loggedInEmployeeId, messages.length, chatState]);
+
+  // Cleanup inactivity timers on unmount
+  useEffect(() => {
+    return () => {
+      if (inactivityTimerRef.current) {
+        clearTimeout(inactivityTimerRef.current);
+      }
+      if (inactivityPromptRef.current) {
+        clearTimeout(inactivityPromptRef.current);
+      }
+    };
+  }, []);
+
+  // Debug video state
+  useEffect(() => {
+    console.log('[VIDEO DEBUG] showVideo state:', showVideo);
+    console.log('[VIDEO DEBUG] chatState:', chatState);
+    console.log('[VIDEO DEBUG] selectedMood:', selectedMood);
+    console.log('[VIDEO DEBUG] Platform:', Platform.OS);
+    console.log('[VIDEO DEBUG] Platform Version:', Platform.Version);
+  }, [showVideo, chatState, selectedMood]);
+
+  // Handle GIF loading timeout
+  useEffect(() => {
+    if (showVideo && gifLoading) {
+      const timeout = setTimeout(() => {
+        console.log('[GIF TIMEOUT] GIF loading timed out after 5 seconds');
+        setGifLoadError(true);
+        setGifLoading(false);
+      }, 5000); // 5 second timeout
+
+      return () => clearTimeout(timeout);
+    }
+  }, [showVideo, gifLoading]);
+
+  // Check if GIF animation is supported
+  useEffect(() => {
+    // On some devices, GIF animation might be disabled
+    if (Platform.OS === 'android') {
+      // Try to detect if GIF animation is working
+      const testGifAnimation = () => {
+        console.log('[GIF ANIMATION] Testing GIF animation support');
+        // This will help us know if GIFs are animating
+        setTimeout(() => {
+          if (gifLoading && !gifLoadError) {
+            console.log('[GIF ANIMATION] GIF appears to be loading, animation should work');
           }
-        } catch (error) {
-          // fallback to 'User'
+        }, 2000);
+      };
+      testGifAnimation();
+    }
+  }, []);
+
+  // Function to refresh GIFs if they're not animating
+  const refreshGifs = () => {
+    console.log('[GIF REFRESH] Refreshing GIFs to ensure animation');
+    setGifRefreshKey(prev => prev + 1);
+  };
+
+  // Auto-refresh GIFs after a delay to ensure animation
+  useEffect(() => {
+    if (showVideo && !gifLoadError && !gifLoading) {
+      const autoRefreshTimer = setTimeout(() => {
+        console.log('[GIF AUTO-REFRESH] Auto-refreshing GIFs to ensure animation');
+        refreshGifs();
+      }, 3000); // Refresh after 3 seconds
+
+      return () => clearTimeout(autoRefreshTimer);
+    }
+  }, [showVideo, gifLoadError, gifLoading]);
+
+  const handleBracketEdit = (oldText, newText) => {
+    // Extract all brackets from the original text
+    const bracketRegex = /\[([^\]]*)\]/g;
+    const originalBrackets = [];
+    let match;
+    
+    while ((match = bracketRegex.exec(oldText)) !== null) {
+      originalBrackets.push({
+        start: match.index,
+        end: match.index + match[0].length,
+        content: match[1],
+        fullMatch: match[0]
+      });
+    }
+    
+    // If no brackets found, return the original text
+    if (originalBrackets.length === 0) {
+      return oldText;
+    }
+    
+    // Extract all brackets from the new text
+    const newBracketMatches = newText.match(/\[([^\]]*)\]/g);
+    
+    // If the number of brackets doesn't match, return original text
+    if (!newBracketMatches || newBracketMatches.length !== originalBrackets.length) {
+      return oldText;
+    }
+    
+    // Build the new text by replacing only the content within brackets
+    let result = oldText;
+    let offset = 0;
+    
+    for (let i = 0; i < originalBrackets.length; i++) {
+      const bracket = originalBrackets[i];
+      const newContent = newBracketMatches[i].replace(/[\[\]]/g, '');
+      
+      // Calculate adjusted positions
+      const adjustedStart = bracket.start + offset;
+      const adjustedEnd = bracket.end + offset;
+      
+      // Replace only the content within this bracket
+      const beforeBracket = result.substring(0, adjustedStart);
+      const afterBracket = result.substring(adjustedEnd);
+      result = beforeBracket + `[${newContent}]` + afterBracket;
+      
+      // Update offset for next bracket
+      const oldLength = bracket.content.length;
+      const newLength = newContent.length;
+      offset += (newLength - oldLength);
+    }
+    
+    return result;
+  };
+
+  const displayOptionsSequentially = (options) => {
+    setVisibleOptions([]);
+    setShowOptionsSequentially(true);
+    
+    options.forEach((option, index) => {
+      setTimeout(() => {
+        setVisibleOptions(prev => [...prev, option]);
+        // Scroll to show options after each one appears
+        setTimeout(() => {
+          if (scrollViewRef.current) {
+            scrollViewRef.current.scrollToEnd({ animated: true });
+          }
+        }, 100); // Small delay to ensure rendering
+      }, (index + 1) * 800); // 800ms delay between each option
+    });
+  };
+
+  // Function to save incomplete chat
+  const saveIncompleteChat = async () => {
+    if (!loggedInEmployeeId) {
+      console.log('[SAVE] Skipped: No loggedInEmployeeId');
+      return;
+    }
+    
+    // Save even if no messages yet, to track the initial state
+    if (messages.length === 0 && chatState === CHAT_STATES.MOOD_SELECTION) {
+      console.log('[SAVE] Saving initial chat state');
+    }
+    
+    try {
+      const incompleteChatData = {
+        employeeId: loggedInEmployeeId,
+        employeeName: userName,
+        messages: messages,
+        chatState: chatState,
+        selectedMood: selectedMood,
+        selectedOption: selectedOption,
+        selectedSecondaryOption: selectedSecondaryOption,
+        selectedThirdOption: selectedThirdOption,
+        selectedFourthOption: selectedFourthOption,
+        currentFlow: currentFlow,
+        currentStep: currentStep,
+        elaboration: elaboration,
+        qaPairs: qaPairs,
+        sadReasonKey: sadReasonKey,
+        madReasonKey: madReasonKey,
+        timestamp: serverTimestamp(),
+        lastUpdated: new Date().toISOString()
+      };
+      console.log('[SAVE] Attempting to save incomplete chat:', incompleteChatData);
+      
+      // Check if incomplete chat already exists for this employeeId
+      const incompleteQuery = query(
+        collection(db, 'incompleteChats'),
+        where('employeeId', '==', loggedInEmployeeId)
+      );
+      const incompleteSnapshot = await getDocs(incompleteQuery);
+      
+      if (!incompleteSnapshot.empty) {
+        const docId = incompleteSnapshot.docs[0].id;
+        await setDoc(doc(db, 'incompleteChats', docId), incompleteChatData);
+        console.log('[SAVE] Incomplete chat updated for employeeId:', loggedInEmployeeId, 'DocId:', docId);
+      } else {
+        const docRef = await addDoc(collection(db, 'incompleteChats'), incompleteChatData);
+        console.log('[SAVE] Incomplete chat saved for employeeId:', loggedInEmployeeId, 'DocId:', docRef.id);
+      }
+    } catch (error) {
+      console.error('[SAVE] Error saving incomplete chat for employeeId:', loggedInEmployeeId, error);
+    }
+  };
+
+  // Function to restore incomplete chat
+  const restoreIncompleteChat = async (incompleteData) => {
+    try {
+      console.log('[RESTORE] Starting restore process for incomplete chat');
+      console.log('[RESTORE] Incomplete data received:', incompleteData);
+      
+      // Check if chat was already completed
+      if (incompleteData.chatState === CHAT_STATES.THANK_YOU) {
+        console.log('[RESTORE] Chat was already completed, starting fresh');
+        // Delete the completed chat document
+        await deleteIncompleteChat();
+        return false; // Don't restore, start fresh
+      }
+      
+      console.log('[RESTORE] Chat not completed, proceeding with restoration');
+      
+      // Convert time strings back to Date objects for messages
+      const restoredMessages = (incompleteData.messages || []).map(msg => ({
+        ...msg,
+        time: msg.time ? new Date(msg.time) : new Date()
+      }));
+      console.log('[RESTORE] Restored messages:', restoredMessages);
+      
+      setMessages(restoredMessages);
+      setChatState(incompleteData.chatState || CHAT_STATES.MOOD_SELECTION);
+      setSelectedMood(incompleteData.selectedMood || null);
+      setSelectedOption(incompleteData.selectedOption || null);
+      setSelectedSecondaryOption(incompleteData.selectedSecondaryOption || null);
+      setSelectedThirdOption(incompleteData.selectedThirdOption || null);
+      setSelectedFourthOption(incompleteData.selectedFourthOption || null);
+      setCurrentFlow(incompleteData.currentFlow || null);
+      setCurrentStep(incompleteData.currentStep || null);
+      setElaboration(incompleteData.elaboration || '');
+      setQaPairs(incompleteData.qaPairs || []);
+      setSadReasonKey(incompleteData.sadReasonKey || null);
+      setMadReasonKey(incompleteData.madReasonKey || null);
+      
+      console.log('[RESTORE] State variables set successfully');
+      
+      // Handle video visibility based on mood selection
+      if (incompleteData.selectedMood) {
+        setShowVideo(false); // Hide video if mood was already selected
+      } else {
+        setShowVideo(true); // Show video if no mood was selected yet
+      }
+      
+      console.log('[RESTORE] Restored incomplete chat data:', incompleteData);
+      console.log('[RESTORE] State after restore:', {
+        messages: restoredMessages,
+        chatState: incompleteData.chatState,
+        selectedMood: incompleteData.selectedMood,
+        selectedOption: incompleteData.selectedOption,
+        selectedSecondaryOption: incompleteData.selectedSecondaryOption,
+        selectedThirdOption: incompleteData.selectedThirdOption,
+        selectedFourthOption: incompleteData.selectedFourthOption,
+        currentFlow: incompleteData.currentFlow,
+        currentStep: incompleteData.currentStep,
+        elaboration: incompleteData.elaboration,
+        qaPairs: incompleteData.qaPairs
+      });
+      // Continue the conversation based on current state
+      setTimeout(() => {
+        console.log('[RESTORE] Continuing conversation based on restored state');
+        if (incompleteData.chatState === CHAT_STATES.MOOD_SELECTION && !incompleteData.selectedMood) {
+          showMoodSelection();
+        } else if (incompleteData.currentStep && incompleteData.currentFlow) {
+          const step = incompleteData.currentFlow[incompleteData.currentStep];
+          if (step && step.options) {
+            const optionsArray = Object.entries(step.options).map(([optionText, nextStepKey]) => ({
+              text: optionText,
+              nextStepKey: nextStepKey
+            }));
+            displayOptionsSequentially(optionsArray);
+          } else if (step && step.question_edit) {
+            setEditText(step.question_edit);
+            setEditTextPlaceholder(step.question_edit);
+            setShowEditText(true);
+            setPendingNextStep(step.next);
+          }
+        } else if (incompleteData.chatState === CHAT_STATES.ELABORATION) {
+          // The input field will be rendered automatically
         }
+        setTimeout(() => {
+          if (scrollViewRef.current) {
+            scrollViewRef.current.scrollToEnd({ animated: true });
+          }
+        }, 200);
+        // Save the restored conversation back to incompleteChats after a short delay
+        saveIncompleteChat();
+      }, 500);
+      console.log('[RESTORE] Incomplete chat restored and continuing');
+      
+      // Start inactivity timer after restoration
+      setTimeout(() => {
+        console.log('[RESTORE] Starting inactivity timer after restoration');
+        setIsChatFullyLoaded(true);
+        startInactivityTimer();
+      }, 1000);
+      
+      return true;
+    } catch (error) {
+      console.error('[RESTORE] Error restoring incomplete chat:', error);
+      return false;
+    }
+  };
+
+  // Function to delete incomplete chat
+  const deleteIncompleteChat = async () => {
+    if (!loggedInEmployeeId) return;
+    
+    try {
+      const incompleteQuery = query(
+        collection(db, 'incompleteChats'),
+        where('employeeId', '==', loggedInEmployeeId)
+      );
+      const incompleteSnapshot = await getDocs(incompleteQuery);
+      
+      if (!incompleteSnapshot.empty) {
+        const docId = incompleteSnapshot.docs[0].id;
+        await deleteDoc(doc(db, 'incompleteChats', docId));
+        console.log('Incomplete chat deleted for employeeId:', loggedInEmployeeId);
+      } else {
+        console.log('No incomplete chat found to delete for employeeId:', loggedInEmployeeId);
+      }
+    } catch (error) {
+      console.error('Error deleting incomplete chat for employeeId:', loggedInEmployeeId, error);
+    }
+  };
+
+  // Load custom fonts
+  useEffect(() => {
+    const loadFonts = async () => {
+      try {
+        await Font.loadAsync({
+          'SpaceMono-Regular': require('../assets/fonts/SpaceMono-Regular.ttf'),
+        });
+        setFontsLoaded(true);
+        console.log('Fonts loaded successfully');
+      } catch (error) {
+        console.error('Error loading fonts:', error);
+        setFontsLoaded(true); // Continue without custom fonts
+      }
+    };
+    
+    loadFonts();
+  }, []);
+
+  useEffect(() => {
+    const initializeChat = async () => {
+      console.log('[RELOAD] Starting chat initialization for employeeId:', loggedInEmployeeId);
+      if (!loggedInEmployeeId) return;
+      
+      // First, fetch the user's name
+      let nameToShow = 'User';
+      try {
+        const userDoc = await getDoc(doc(db, 'employees', loggedInEmployeeId));
+        if (userDoc.exists()) {
+          nameToShow = userDoc.data().name || 'User';
+        }
+      } catch (error) {
+        // fallback to 'User'
       }
       setUserName(nameToShow);
+      console.log('[RELOAD] User name set to:', nameToShow);
 
-      // Now set the welcome messages with the correct name
-      const welcomeMessage1 = {
-        id: 1,
-        text: "Welcome to mDojo!",
-        isUser: false,
-        time: new Date()
-      };
-      const welcomeMessage2 = {
-        id: 2,
-        text: `Hi, ${nameToShow}!`,
-        isUser: false,
-        time: new Date()
-      };
-      setMessages([welcomeMessage1, welcomeMessage2]);
-      setTimeout(() => {
-        showMoodSelection();
-      }, 800);
-      setChatState(CHAT_STATES.MOOD_SELECTION);
-    };
-
-    fetchUserNameAndGreet();
-  }, [loggedInEmployeeId]);
-
-  useEffect(() => {
-    const fetchChatHistory = async () => {
-      if (!loggedInEmployeeId) return;
-      const q = query(
-        collection(db, 'chatResponses'),
-        where('employeeId', '==', loggedInEmployeeId),
-        orderBy('timestamp', 'asc')
+      // Check for incomplete chat first using employeeId
+      const incompleteQuery = query(
+        collection(db, 'incompleteChats'),
+        where('employeeId', '==', loggedInEmployeeId)
       );
-      const querySnapshot = await getDocs(q);
-      const history = [];
-      querySnapshot.forEach(doc => {
-        const data = doc.data();
-        history.push({
-          id: data.id || doc.id,
-          text: data.text,
-          isUser: data.isUser,
-          time: data.timestamp ? data.timestamp.toDate() : new Date()
-        });
-      });
-      if (history.length > 0) {
-        history.unshift(
-          {
+      const incompleteSnapshot = await getDocs(incompleteQuery);
+      
+      if (!incompleteSnapshot.empty) {
+        // Restore incomplete chat
+        const firstDoc = incompleteSnapshot.docs[0];
+        const incompleteData = firstDoc.data();
+        console.log('[RELOAD] Found incomplete chat data:', incompleteData);
+        console.log('[RELOAD] Chat state in incomplete data:', incompleteData.chatState);
+        console.log('[RELOAD] Expected THANK_YOU state:', CHAT_STATES.THANK_YOU);
+        
+        // If the doc is empty or invalid, treat as no incomplete chat
+        if (!incompleteData || Object.keys(incompleteData).length === 0 || incompleteData.chatState === CHAT_STATES.THANK_YOU) {
+          console.log('[RELOAD] Incomplete chat doc is empty/invalid or completed. Deleting and starting fresh.');
+          console.log('[RELOAD] Empty data check:', !incompleteData);
+          console.log('[RELOAD] Empty object check:', Object.keys(incompleteData).length === 0);
+          console.log('[RELOAD] Completed check:', incompleteData.chatState === CHAT_STATES.THANK_YOU);
+          try {
+            await deleteDoc(doc(db, 'incompleteChats', firstDoc.id));
+          } catch (e) {
+            console.log('[RELOAD] Failed to delete invalid incomplete chat doc:', e);
+          }
+          
+          // Reset all state variables for fresh start after deleting completed chat
+          setMessages([]);
+          setChatState(CHAT_STATES.MOOD_SELECTION);
+          setSelectedMood(null);
+          setSelectedOption(null);
+          setSelectedSecondaryOption(null);
+          setSelectedThirdOption(null);
+          setSelectedFourthOption(null);
+          setCurrentFlow(null);
+          setCurrentStep(null);
+          setElaboration('');
+          setQaPairs([]);
+          setSadReasonKey(null);
+          setMadReasonKey(null);
+          setShowOptions(false);
+          setShowSecondaryOptions(false);
+          setShowThirdOptions(false);
+          setShowFourthOptions(false);
+          setShowEditText(false);
+          setEditText('');
+          setShowOptionsSequentially(false);
+          setVisibleOptions([]);
+          setShowThinkingDots(false);
+          setShowVideo(true);
+          setGifLoadError(false);
+          setGifLoading(true);
+          
+          // Start fresh with welcome messages
+          const welcomeMessage1 = {
             id: 1,
+            text: `Hi, ${nameToShow}!`,
+            isUser: false,
+            time: new Date()
+          };
+          const welcomeGifMessage = {
+            id: 2,
+            text: "Welcome to mDojo! 👋",
+            isUser: false,
+            time: new Date(),
+            isWelcomeGif: true,
+            gifSource: require('../assets/images/welcome.gif')
+          };
+          const welcomeMessage2 = {
+            id: 3,
             text: "Welcome to mDojo!",
             isUser: false,
-            time: new Date()
-          },
-          {
-            id: 2,
-            text: `Hi, ${userName || 'User'}!`,
-            isUser: false,
-            time: new Date()
+            time: new Date(),
+            isWelcomeText: true
+          };
+          setMessages([welcomeMessage1, welcomeGifMessage, welcomeMessage2]);
+          setTimeout(() => {
+            showMoodSelection();
+            // Save initial state after welcome messages
+            setTimeout(() => {
+              saveIncompleteChat();
+            }, 1000);
+          }, 800);
+          setChatState(CHAT_STATES.MOOD_SELECTION);
+          console.log('[RELOAD] Started fresh chat with welcome messages after deleting completed chat');
+          
+          // Start inactivity timer immediately after chat is set up
+          setTimeout(() => {
+            console.log('[RELOAD] Starting inactivity timer for fresh chat');
+            setIsChatFullyLoaded(true);
+            startInactivityTimer();
+          }, 2000);
+          
+          return; // Don't proceed with normal initialization
+        } else {
+          console.log('[RELOAD] Found incomplete chat for employeeId:', loggedInEmployeeId);
+          console.log('[RELOAD] Attempting to restore incomplete chat...');
+          const restored = await restoreIncompleteChat(incompleteData);
+          
+          if (restored) {
+            console.log('[RELOAD] Incomplete chat restored successfully for employeeId:', loggedInEmployeeId);
+            return; // Don't proceed with normal initialization
+          } else {
+            console.log('[RELOAD] Failed to restore incomplete chat, will start fresh');
           }
-        );
+        }
+      } else {
+        console.log('[RELOAD] No incomplete chat found for employeeId:', loggedInEmployeeId);
+        
+        // Reset all state variables for fresh start
+        setMessages([]);
+        setChatState(CHAT_STATES.MOOD_SELECTION);
+        setSelectedMood(null);
+        setSelectedOption(null);
+        setSelectedSecondaryOption(null);
+        setSelectedThirdOption(null);
+        setSelectedFourthOption(null);
+        setCurrentFlow(null);
+        setCurrentStep(null);
+        setElaboration('');
+        setQaPairs([]);
+        setSadReasonKey(null);
+        setMadReasonKey(null);
+        setShowOptions(false);
+        setShowSecondaryOptions(false);
+        setShowThirdOptions(false);
+        setShowFourthOptions(false);
+        setShowEditText(false);
+        setEditText('');
+        setShowOptionsSequentially(false);
+        setVisibleOptions([]);
+        setShowThinkingDots(false);
+        setShowVideo(true);
+        setGifLoadError(false);
+        setGifLoading(true);
+        
+        // If no incomplete chat, start fresh with welcome messages
+        const welcomeMessage1 = {
+          id: 1,
+          text: `Hi, ${nameToShow}!`,
+          isUser: false,
+          time: new Date()
+        };
+        const welcomeGifMessage = {
+          id: 2,
+          text: "Welcome to mDojo! 👋",
+          isUser: false,
+          time: new Date(),
+          isWelcomeGif: true,
+          gifSource: require('../assets/images/welcome.gif')
+        };
+        const welcomeMessage2 = {
+          id: 3,
+          text: "Welcome to mDojo!",
+          isUser: false,
+          time: new Date(),
+          isWelcomeText: true
+        };
+        setMessages([welcomeMessage1, welcomeGifMessage, welcomeMessage2]);
+        setTimeout(() => {
+          showMoodSelection();
+          // Save initial state after welcome messages
+          setTimeout(() => {
+            saveIncompleteChat();
+          }, 1000);
+        }, 800);
+        setChatState(CHAT_STATES.MOOD_SELECTION);
+        console.log('[RELOAD] Started fresh chat with welcome messages');
+        
+        // Start inactivity timer immediately after chat is set up
+        setTimeout(() => {
+          console.log('[RELOAD] Starting inactivity timer for fresh chat');
+          setIsChatFullyLoaded(true);
+          startInactivityTimer();
+        }, 2000);
       }
-      setMessages(history);
     };
-    fetchChatHistory();
-  }, [loggedInEmployeeId, userName]);
+
+    initializeChat();
+  }, [loggedInEmployeeId]);
+
+  // Save incomplete chat when component unmounts or when important state changes
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (loggedInEmployeeId && messages.length > 0 && chatState !== CHAT_STATES.THANK_YOU) {
+        saveIncompleteChat();
+      }
+    };
+
+    // For web
+    if (Platform.OS === 'web') {
+      window.addEventListener('beforeunload', handleBeforeUnload);
+      return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }
+  }, [loggedInEmployeeId, messages, chatState]);
+
+  // Auto-save incomplete chat whenever important state changes
+  useEffect(() => {
+    if (!loggedInEmployeeId || chatState === CHAT_STATES.THANK_YOU) return;
+
+    // Save immediately when state changes
+    console.log('[AUTO-SAVE] Triggered by state change:', { chatState, messagesLength: messages.length });
+    saveIncompleteChat();
+  }, [loggedInEmployeeId, messages, chatState, selectedMood, selectedOption, selectedSecondaryOption, selectedThirdOption, selectedFourthOption, currentFlow, currentStep, elaboration, qaPairs]);
+
+  // Additional save trigger for user interactions after restoration
+  useEffect(() => {
+    if (!loggedInEmployeeId || chatState === CHAT_STATES.THANK_YOU) return;
+
+    // Save when user interacts with the chat (any message addition)
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage && lastMessage.time) {
+      console.log('[AUTO-SAVE] Triggered by message addition');
+      saveIncompleteChat();
+    }
+  }, [messages.length]); // Trigger on message count change
+
+  // Handle app state changes for mobile platforms
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState) => {
+      if (nextAppState === 'background' || nextAppState === 'inactive') {
+        if (loggedInEmployeeId && messages.length > 0 && chatState !== CHAT_STATES.THANK_YOU) {
+          saveIncompleteChat();
+        }
+      }
+    };
+
+    if (Platform.OS !== 'web') {
+      const subscription = AppState.addEventListener('change', handleAppStateChange);
+      return () => subscription?.remove();
+    }
+  }, [loggedInEmployeeId, messages, chatState]);
+
+  // Cleanup function when component unmounts
+  useEffect(() => {
+    return () => {
+      if (loggedInEmployeeId && messages.length > 0 && chatState !== CHAT_STATES.THANK_YOU) {
+        saveIncompleteChat();
+      }
+    };
+  }, [loggedInEmployeeId, messages, chatState]);
 
   useEffect(() => {
     if (scrollViewRef.current) {
-      scrollViewRef.current.scrollToEnd({ animated: true });
+      // Add a small delay to ensure content is rendered before scrolling
+      setTimeout(() => {
+        scrollViewRef.current.scrollToEnd({ animated: true });
+      }, 100);
     }
-  }, [messages, showOptions, showSecondaryOptions]);
+  }, [messages, showOptions, showSecondaryOptions, showThirdOptions, showFourthOptions, showOptionsSequentially, visibleOptions, showEditText]);
 
   useEffect(() => {
     Animated.timing(fadeAnim, {
@@ -298,6 +1003,7 @@ const goToStep = (stepKey) => {
   setCurrentStep(stepKey);
   const step = currentFlow[stepKey];
   if (step && step.question) {
+    // Show question immediately
     const botMsg = {
       id: Date.now(),
       text: step.question,
@@ -306,24 +1012,55 @@ const goToStep = (stepKey) => {
     };
     setMessages(prev => [...prev, botMsg]);
     // saveChatMessage(loggedInEmployeeId, botMsg); // REMOVED
+    
+    // Add delay for options if they exist
+    if (step.options) {
+      setShowThinkingDots(true);
+      // Scroll to show thinking dots
+      setTimeout(() => {
+        if (scrollViewRef.current) {
+          scrollViewRef.current.scrollToEnd({ animated: true });
+        }
+      }, 100);
+      
+      setTimeout(() => {
+        setShowThinkingDots(false);
+        // Show options sequentially
+        const optionsArray = Object.entries(step.options).map(([optionText, nextStepKey]) => ({
+          text: optionText,
+          nextStepKey: nextStepKey
+        }));
+        displayOptionsSequentially(optionsArray);
+      }, 800); // 0.8 second delay for options
+    }
   }
 };
 
-const handleMoodSelect = (mood) => {
-  setSelectedMood(mood);
-  let flow = null;
-  if (mood === 'glad') flow = mdojoFullFlow.Glad;
-  else if (mood === 'sad') flow = mdojoFullFlow.Sad;
-  else if (mood === 'mad') flow = mdojoFullFlow.Mad;
+  const handleMoodSelect = (mood) => {
+    resetInactivityTimer(); // Reset timer on mood selection
+    setSelectedMood(mood);
+    setShowVideo(false); // Hide video after mood selection
+    setGifLoadError(false); // Reset GIF error state
+    setGifLoading(false); // Reset loading state
+    let flow = null;
+    if (mood === 'glad') flow = mdojoFullFlow.Glad;
+    else if (mood === 'sad') flow = mdojoFullFlow.Sad;
+    else if (mood === 'mad') flow = mdojoFullFlow.Mad;
 
-  setCurrentFlow(flow);
-  setMessages(prev => [
-    ...prev,
-    { id: Date.now(), text: mood.charAt(0).toUpperCase() + mood.slice(1), isUser: true, time: new Date() }
-  ]);
-  // Use the local flow variable directly:
-  goToStepWithFlow('step1', flow);
-};
+    setCurrentFlow(flow);
+    setMessages(prev => [
+      ...prev,
+      { id: Date.now(), text: mood.charAt(0).toUpperCase() + mood.slice(1), isUser: true, time: new Date() }
+    ]);
+    
+    // Save immediately after mood selection
+    setTimeout(() => {
+      saveIncompleteChat();
+    }, 100);
+    
+    // Show question immediately, then delay for options
+    goToStepWithFlow('step1', flow);
+  };
 
 // New helper function:
 const goToStepWithFlow = (stepKey, flowOverride) => {
@@ -331,6 +1068,7 @@ const goToStepWithFlow = (stepKey, flowOverride) => {
   setCurrentStep(stepKey);
   const step = flow[stepKey];
   if (step && step.question) {
+    // Show question immediately
     setMessages(prev => [
       ...prev,
       {
@@ -340,12 +1078,34 @@ const goToStepWithFlow = (stepKey, flowOverride) => {
         time: new Date()
       }
     ]);
+    
+    // Add delay for options if they exist
+    if (step.options) {
+      setShowThinkingDots(true);
+      // Scroll to show thinking dots
+      setTimeout(() => {
+        if (scrollViewRef.current) {
+          scrollViewRef.current.scrollToEnd({ animated: true });
+        }
+      }, 100);
+      
+      setTimeout(() => {
+        setShowThinkingDots(false);
+        // Show options sequentially
+        const optionsArray = Object.entries(step.options).map(([optionText, nextStepKey]) => ({
+          text: optionText,
+          nextStepKey: nextStepKey
+        }));
+        displayOptionsSequentially(optionsArray);
+      }, 800); // 0.8 second delay for options
+    }
   }
 };
 
   const handleElaborationSubmit = async () => {
     if (!elaboration.trim()) return;
 
+    resetInactivityTimer(); // Reset timer on elaboration submit
     const elaborationMessage = {
       id: Date.now(),
       text: elaboration,
@@ -358,9 +1118,12 @@ const goToStepWithFlow = (stepKey, flowOverride) => {
     
     await saveChatResponse();
     
+    // Add thinking delay before showing final messages
+    setShowThinkingDots(true);
     setTimeout(() => {
+      setShowThinkingDots(false);
       showFinalMessages();
-    }, 500);
+    }, 800); // 0.8 second thinking delay
   };
 
   const handleSend = () => {
@@ -384,16 +1147,14 @@ const goToStepWithFlow = (stepKey, flowOverride) => {
   };
 
   const showMoodSelection = () => {
-    const moodQuestion = {
-      id: Date.now() + 1,
-      text: "How are you feeling today?",
-      isUser: false,
-      time: new Date(),
-      isMoodQuestion: true
-    };
-    
-    setMessages(prev => [...prev, moodQuestion]);
     setChatState(CHAT_STATES.MOOD_SELECTION);
+    
+    // Scroll to show mood selection after a short delay
+    setTimeout(() => {
+      if (scrollViewRef.current) {
+        scrollViewRef.current.scrollToEnd({ animated: true });
+      }
+    }, 200);
   };
 
   const showInitialQuestion = (mood) => {
@@ -434,61 +1195,215 @@ const goToStepWithFlow = (stepKey, flowOverride) => {
   };
 
   const handleOptionSelect = (optionText, nextStepKey) => {
-    // Track Sad step1 selection
-    if (currentFlow && currentFlow === mdojoFullFlow.Sad && currentStep === 'step1') {
-      setSadReasonKey(normalizeKey(optionText));
-    }
-    // Dynamic Sad step3 branching after step2
-    if (currentFlow && currentFlow === mdojoFullFlow.Sad && currentStep === 'step2' && nextStepKey === 'step3_dynamic') {
-      if (sadReasonKey) {
-        goToStep('step3_' + sadReasonKey);
-        return;
-      }
-    }
-    // Track Mad step1 selection
-    if (currentFlow && currentFlow === mdojoFullFlow.Mad && currentStep === 'step1') {
-      setMadReasonKey(normalizeKey(optionText));
-    }
-    // Dynamic Mad step3 branching after step2
-    if (currentFlow && currentFlow === mdojoFullFlow.Mad && currentStep === 'step2' && nextStepKey === 'step3_dynamic') {
-      if (madReasonKey) {
-        goToStep('step3_' + madReasonKey);
-        return;
-      }
-    }
-    // Default behavior
-    const userMsg = {
-      id: Date.now(),
-      text: optionText,
-      isUser: true,
-      time: new Date()
+  resetInactivityTimer(); // Reset timer on option selection
+  console.log('[DEBUG] handleOptionSelect called with:', { optionText, nextStepKey, currentStep, currentFlow });
+  
+  // Track Sad step1 selection and map to correct dynamic step names
+  if (currentFlow && currentFlow === mdojoFullFlow.Sad && currentStep === 'step1') {
+    // Map step1 selections to the correct dynamic step names
+    const step1ToDynamicStepMap = {
+      '‍💼 Manager-related challenges': 'step3_manager_related_challenges',
+      '👥 Difficult interactions with colleagues': 'step3_difficult_interactions_with_colleagues',
+      '🏢 Company culture or policies': 'step3_company_culture_or_policies',
+      '❓ Lack of role clarity or direction': 'step3_lack_of_role_clariy_or_direction',
+      '🛠️ Workspace, tools, or infrastructure issues': 'step3_workspace_tools_or_infrastructure_issues',
+      '⚖️ Struggling with work-life balance': 'step3_struggling_with_work_life_balance',
+      '😔 Feeling emotionally exhausted or overwhelmed': 'step3_feeling_emotionally_exhausted_or_overwhelmed'
     };
-    setMessages(prev => {
-      console.log('[DEBUG] Adding message:', userMsg);
-      return [...prev, userMsg];
-    });
-    // saveChatMessage(loggedInEmployeeId, userMsg); // REMOVED
-    const step = currentFlow[nextStepKey];
-    if (step && step.end === true) {
-      showFinalMessages();
+    
+    const dynamicStepKey = step1ToDynamicStepMap[optionText];
+    if (dynamicStepKey) {
+      console.log('[DEBUG] Setting sadReasonKey for dynamic branching:', dynamicStepKey);
+      setSadReasonKey(dynamicStepKey);
+    }
+  }
+  // Dynamic Sad step3 branching after step2
+  if (currentFlow && currentFlow === mdojoFullFlow.Sad && currentStep === 'step2' && nextStepKey === 'step3_dynamic') {
+    if (sadReasonKey) {
+      console.log('[DEBUG] Attempting to go to dynamic step:', sadReasonKey);
+      if (currentFlow[sadReasonKey]) {
+        // Add user message before going to dynamic step
+        const userMsg = {
+          id: Date.now(),
+          text: optionText,
+          isUser: true,
+          time: new Date()
+        };
+        setMessages(prev => [...prev, userMsg]);
+        setQaPairs(prev => [
+          ...prev,
+          { question: currentFlow[currentStep]?.question, answer: optionText }
+        ]);
+        saveIncompleteChat();
+        goToStep(sadReasonKey);
+        return;
+      } else {
+        console.log('[DEBUG] Dynamic step not found, falling back to step5');
+        // Add user message before falling back
+        const userMsg = {
+          id: Date.now(),
+          text: optionText,
+          isUser: true,
+          time: new Date()
+        };
+        setMessages(prev => [...prev, userMsg]);
+        setQaPairs(prev => [
+          ...prev,
+          { question: currentFlow[currentStep]?.question, answer: optionText }
+        ]);
+        saveIncompleteChat();
+        goToStep('step5');
+        return;
+      }
+    } else {
+      console.log('[DEBUG] No sadReasonKey found, falling back to step5');
+      // Add user message before falling back
+      const userMsg = {
+        id: Date.now(),
+        text: optionText,
+        isUser: true,
+        time: new Date()
+      };
+      setMessages(prev => [...prev, userMsg]);
+      setQaPairs(prev => [
+        ...prev,
+        { question: currentFlow[currentStep]?.question, answer: optionText }
+      ]);
+      saveIncompleteChat();
+      goToStep('step5');
       return;
     }
-    if (step && step.question_edit) {
-      setEditText(step.question_edit);
-      setEditTextPlaceholder(step.question_edit);
-      setShowEditText(true);
-      setPendingNextStep(step.next);
-      setCurrentStep(nextStepKey);
-    } else if (step && step.messages) {
-      setPendingMessages(step.messages);
-      setCurrentStep(nextStepKey);
-      showPendingMessages(step.messages, step.next);
-    } else {
-      goToStep(nextStepKey);
+  }
+  // Track Mad step1 selection and map to correct dynamic step names
+  if (currentFlow && currentFlow === mdojoFullFlow.Mad && currentStep === 'step1') {
+    // Map step1 selections to the correct dynamic step names for Mad flow
+    const step1ToDynamicStepMap = {
+      '‍💼 Manager-related challenges': 'step3_manager_related_challenges',
+      '👥 Difficult interactions with colleagues': 'step3_difficult_interactions_with_colleagues',
+      '🏢 Company culture or policies': 'step3_company_culture_or_policies',
+      '❓ Lack of role clarity or direction': 'step3_lack_of_role_clariy_or_direction',
+      '🛠️ Workspace, tools, or infrastructure issues': 'step3_workspace_tools_or_infrastructure_issues',
+      '⚖️ Struggling with work-life balance': 'step3_struggling_with_work_life_balance',
+      '😔 Feeling emotionally exhausted or overwhelmed': 'step3_feeling_emotionally_exhausted_or_overwhelmed'
+    };
+    
+    const dynamicStepKey = step1ToDynamicStepMap[optionText];
+    if (dynamicStepKey) {
+      console.log('[DEBUG] Setting madReasonKey for dynamic branching:', dynamicStepKey);
+      setMadReasonKey(dynamicStepKey);
     }
+  }
+  // Dynamic Mad step3 branching after step2
+  if (currentFlow && currentFlow === mdojoFullFlow.Mad && currentStep === 'step2' && nextStepKey === 'step3_dynamic') {
+    if (madReasonKey) {
+      console.log('[DEBUG] Attempting to go to dynamic step:', madReasonKey);
+      if (currentFlow[madReasonKey]) {
+        // Add user message before going to dynamic step
+        const userMsg = {
+          id: Date.now(),
+          text: optionText,
+          isUser: true,
+          time: new Date()
+        };
+        setMessages(prev => [...prev, userMsg]);
+        setQaPairs(prev => [
+          ...prev,
+          { question: currentFlow[currentStep]?.question, answer: optionText }
+        ]);
+        saveIncompleteChat();
+        goToStep(madReasonKey);
+        return;
+      } else {
+        console.log('[DEBUG] Dynamic step not found, falling back to step5');
+        // Add user message before falling back
+        const userMsg = {
+          id: Date.now(),
+          text: optionText,
+          isUser: true,
+          time: new Date()
+        };
+        setMessages(prev => [...prev, userMsg]);
+        setQaPairs(prev => [
+          ...prev,
+          { question: currentFlow[currentStep]?.question, answer: optionText }
+        ]);
+        saveIncompleteChat();
+        goToStep('step5');
+        return;
+      }
+    } else {
+      console.log('[DEBUG] No madReasonKey found, falling back to step5');
+      // Add user message before falling back
+      const userMsg = {
+        id: Date.now(),
+        text: optionText,
+        isUser: true,
+        time: new Date()
+      };
+      setMessages(prev => [...prev, userMsg]);
+      setQaPairs(prev => [
+        ...prev,
+        { question: currentFlow[currentStep]?.question, answer: optionText }
+      ]);
+      saveIncompleteChat();
+      goToStep('step5');
+      return;
+    }
+  }
+  // Default behavior
+  const userMsg = {
+    id: Date.now(),
+    text: optionText,
+    isUser: true,
+    time: new Date()
   };
+  setMessages(prev => {
+    console.log('[DEBUG] Adding message:', userMsg);
+    return [...prev, userMsg];
+  });
+  // saveChatMessage(loggedInEmployeeId, userMsg); // REMOVED
+  setQaPairs(prev => [
+    ...prev,
+    { question: currentFlow[currentStep]?.question, answer: optionText }
+  ]);
+  
+  // Save immediately after option selection
+  saveIncompleteChat();
+  
+  // Reset sequential options state
+  setShowOptionsSequentially(false);
+  setVisibleOptions([]);
+  
+  // Process next step immediately (question will show immediately, options will delay)
+  const step = currentFlow[nextStepKey];
+  if (step && step.end === true) {
+    showFinalMessages();
+    return;
+  }
+  if (step && step.question_edit) {
+    setEditText(step.question_edit);
+    setEditTextPlaceholder(step.question_edit);
+    setShowEditText(true);
+    setPendingNextStep(step.next);
+    setCurrentStep(nextStepKey);
+    
+    // Scroll to show edit text input after a short delay
+    setTimeout(() => {
+      if (scrollViewRef.current) {
+        scrollViewRef.current.scrollToEnd({ animated: true });
+      }
+    }, 200);
+  } else if (step && step.messages) {
+    setPendingMessages(step.messages);
+    setCurrentStep(nextStepKey);
+    showPendingMessages(step.messages, step.next);
+  } else {
+    goToStep(nextStepKey);
+  }
+};
 
 const handleSecondaryOptionSelect = (option) => {
+  resetInactivityTimer(); // Reset timer on secondary option selection
   const optionMessage = {
     id: Date.now(),
     text: option.text,
@@ -500,20 +1415,27 @@ const handleSecondaryOptionSelect = (option) => {
   setMessages(prev => [...prev, optionMessage]);
   setShowSecondaryOptions(false);
   
-  setTimeout(() => {
-    const gifUrl = currentFlow.secondaryQuestion.gifs[option.value];
-    if (gifUrl) {
-      const gifMessage = {
-        id: Date.now() + 1,
-        text: gifUrl,
-        isUser: false,
-        time: new Date(),
-        isGif: true
-      };
-      setMessages(prev => [...prev, gifMessage]);
-    }
-    
+  // Reset sequential options state
+  setShowOptionsSequentially(false);
+  setVisibleOptions([]);
+  
+  // Show gif immediately, then delay for next question and options
+  const gifUrl = currentFlow.secondaryQuestion.gifs[option.value];
+  if (gifUrl) {
+    const gifMessage = {
+      id: Date.now() + 1,
+      text: gifUrl,
+      isUser: false,
+      time: new Date(),
+      isGif: true
+    };
+    setMessages(prev => [...prev, gifMessage]);
+  }
+  
+      // Add delay for next question and options
+    setShowThinkingDots(true);
     setTimeout(() => {
+      setShowThinkingDots(false);
       const thirdQuestion = {
         id: Date.now() + 2,
         text: currentFlow.thirdQuestion.question,
@@ -524,12 +1446,12 @@ const handleSecondaryOptionSelect = (option) => {
       setMessages(prev => [...prev, thirdQuestion]);
       setChatState(CHAT_STATES.THIRD_QUESTION);
       setShowThirdOptions(true);
-    }, 1000);
-  }, 500);
+    }, 800); // 0.8 second delay for question and options
 };
 
 // Add new handler for third question
 const handleThirdOptionSelect = (option) => {
+  resetInactivityTimer(); // Reset timer on third option selection
   const optionMessage = {
     id: Date.now(),
     text: option.text,
@@ -541,24 +1463,30 @@ const handleThirdOptionSelect = (option) => {
   setMessages(prev => [...prev, optionMessage]);
   setShowThirdOptions(false);
   
+  // Reset sequential options state
+  setShowOptionsSequentially(false);
+  setVisibleOptions([]);
+  
+  // Add delay for next question and options
+  setShowThinkingDots(true);
   setTimeout(() => {
-    setTimeout(() => {
-      const fourthQuestion = {
-        id: Date.now() + 1,
-        text: currentFlow.fourthQuestion.question,
-        isUser: false,
-        time: new Date(),
-        isFollowUp: true
-      };
-      setMessages(prev => [...prev, fourthQuestion]);
-      setChatState(CHAT_STATES.FOURTH_QUESTION);
-      setShowFourthOptions(true);
-    }, 1000);
-  }, 500);
+    setShowThinkingDots(false);
+    const fourthQuestion = {
+      id: Date.now() + 1,
+      text: currentFlow.fourthQuestion.question,
+      isUser: false,
+      time: new Date(),
+      isFollowUp: true
+    };
+    setMessages(prev => [...prev, fourthQuestion]);
+    setChatState(CHAT_STATES.FOURTH_QUESTION);
+    setShowFourthOptions(true);
+  }, 800); // 0.8 second delay for question and options
 };
 
 // Add new handler for fourth question
 const handleFourthOptionSelect = (option) => {
+  resetInactivityTimer(); // Reset timer on fourth option selection
   const optionMessage = {
     id: Date.now(),
     text: option.text,
@@ -570,7 +1498,14 @@ const handleFourthOptionSelect = (option) => {
   setMessages(prev => [...prev, optionMessage]);
   setShowFourthOptions(false);
   
+  // Reset sequential options state
+  setShowOptionsSequentially(false);
+  setVisibleOptions([]);
+  
+  // Add delay for elaboration prompt or final messages
+  setShowThinkingDots(true);
   setTimeout(() => {
+    setShowThinkingDots(false);
     // If user selects 'No, I prefer to keep it private', skip elaboration and show final messages
     if (option.value === 'Keep private') {
       saveChatResponse(); // Save the response before showing final messages
@@ -585,51 +1520,49 @@ const handleFourthOptionSelect = (option) => {
     };
     setMessages(prev => [...prev, elaborationPrompt]);
     setChatState(CHAT_STATES.ELABORATION);
-  }, 1000);
+  }, 800); // 0.8 second delay for elaboration prompt
 };
 
-  const showFinalMessages = () => {
+  const showFinalMessages = async () => {
     console.log('[DEBUG] Entered showFinalMessages'); // Debug log
-    // Store conversation summary in Firestore
-    const chatObject = {};
-    messages
-      .filter(msg => typeof msg.text === 'string' && msg.text !== undefined && msg.text !== null)
-      .forEach((msg, idx) => {
-        chatObject[idx] = {
-          ...msg,
-          text: typeof msg.text === 'string' ? msg.text : ''
-        };
-      });
-    const summaryData = {
-      employeeId: loggedInEmployeeId,
-      mood: selectedMood,
-      timestamp: new Date(),
-      chat: chatObject
-    };
-    addDoc(collection(db, 'chatResponses'), summaryData)
-      .then(() => {
-        console.log('Conversation summary saved to Firestore');
-        if (Platform.OS === 'web') {
-          window.alert('Thank you!\nYour feedback has been submitted. We appreciate your time!');
-          router.replace('/login');
-        } else {
-          Alert.alert(
-            'Thank you!',
-            'Your feedback has been submitted. We appreciate your time!',
-            [
-              { text: 'OK', onPress: () => router.replace('/login') }
-            ]
-          );
-        }
-      })
-      .catch((error) => {
-        console.error('Error saving conversation summary:', error);
-        if (Platform.OS === 'web') {
-          window.alert('Error saving feedback. Please try again.');
-        } else {
-          Alert.alert('Error', 'Error saving feedback. Please try again.');
+    console.log('[DEBUG] Final qaPairs before saving:', qaPairs);
+    
+    try {
+      // Set chat state to completed first
+      setChatState(CHAT_STATES.THANK_YOU);
+      
+      // Store conversation summary in Firestore
+      const chatQAObject = {};
+      qaPairs.forEach(pair => {
+        if (pair.question && pair.answer) {
+          chatQAObject[pair.question] = pair.answer;
         }
       });
+      console.log('[DEBUG] Final chatQAObject to save:', chatQAObject);
+      const summaryData = {
+        employeeId: loggedInEmployeeId,
+        mood: selectedMood,
+        timestamp: new Date(),
+        chat: chatQAObject
+      };
+      
+      await addDoc(collection(db, 'chatResponses'), summaryData);
+      console.log('Conversation summary saved to Firestore');
+      
+      // Delete incomplete chat since conversation is completed
+      await deleteIncompleteChat();
+      console.log('Incomplete chat deleted after completion');
+      
+      // Show in-app end-of-chat prompt instead of native alerts
+      setShowEndPopup(true);
+    } catch (error) {
+      console.error('Error saving conversation summary:', error);
+      if (Platform.OS === 'web') {
+        window.alert('Error saving feedback. Please try again.');
+      } else {
+        Alert.alert('Error', 'Error saving feedback. Please try again.');
+      }
+    }
   };
 
   const showPendingMessages = (messagesArr, nextStep) => {
@@ -665,6 +1598,7 @@ const handleFourthOptionSelect = (option) => {
 
   const handleEditTextSubmit = () => {
     if (!editText.trim()) return;
+    resetInactivityTimer(); // Reset timer on edit text submit
     const userMsg = {
       id: Date.now(),
       text: editText,
@@ -672,6 +1606,20 @@ const handleFourthOptionSelect = (option) => {
       time: new Date()
     };
     setMessages(prev => [...prev, userMsg]);
+    
+    // Always update the last Q&A pair with the user's custom input
+    setQaPairs(prev => {
+      const updatedPairs = [...prev];
+      if (updatedPairs.length > 0) {
+        const lastPair = updatedPairs[updatedPairs.length - 1];
+        lastPair.answer = editText;
+      }
+      return updatedPairs;
+    });
+    
+    // Save immediately after edit text submission
+    saveIncompleteChat();
+    
     // saveChatMessage(loggedInEmployeeId, userMsg); // REMOVED
     setShowEditText(false);
     setEditText('');
@@ -689,6 +1637,8 @@ const handleFourthOptionSelect = (option) => {
   const renderMoodSelection = () => {
     if (chatState !== CHAT_STATES.MOOD_SELECTION || selectedMood) return null;
     
+    console.log('[MOOD DEBUG] Rendering mood selection, showVideo:', showVideo);
+    
     return (
       <View style={styles.moodSelectionContainer}>
         <Text style={styles.sectionTitle}>How are you feeling today?</Text>
@@ -704,7 +1654,29 @@ const handleFourthOptionSelect = (option) => {
               onPress={() => handleMoodSelect(mood.id)}
               activeOpacity={0.8}
             >
-              <Text style={styles.moodEmoji}>{mood.emoji}</Text>
+              {useExpoImage ? (
+                <ExpoImage 
+                  source={mood.gif} 
+                  style={styles.moodGif} 
+                  contentFit="contain"
+                  onError={(error) => {
+                    console.log('[MOOD GIF ERROR] ExpoImage failed, falling back to Image', error);
+                    setUseExpoImage(false);
+                  }}
+                  onLoad={() => console.log('[MOOD GIF LOADED]', mood.id)}
+                  cachePolicy="memory-disk"
+                  priority="high"
+                  recyclingKey={`${mood.id}-${gifRefreshKey}`}
+                />
+              ) : (
+                <Image 
+                  source={mood.gif} 
+                  style={styles.moodGif} 
+                  resizeMode="contain"
+                  onError={(error) => console.log('[MOOD GIF ERROR] Image also failed', error.nativeEvent)}
+                  onLoad={() => console.log('[MOOD GIF LOADED] Image fallback', mood.id)}
+                />
+              )}
               <Text style={styles.moodLabel}>{mood.label}</Text>
               {selectedMood === mood.id && (
                 <View style={[styles.selectionIndicator, { backgroundColor: mood.color }]} />
@@ -712,6 +1684,70 @@ const handleFourthOptionSelect = (option) => {
             </TouchableOpacity>
           ))}
         </View>
+        
+        {/* Chat GIF below mood selection */}
+        {showVideo && (
+          <View style={styles.videoContainer}>
+            {!gifLoadError ? (
+              <>
+                {gifLoading && (
+                  <View style={[styles.video, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f0f0' }]}>
+                    <Text style={styles.loadingText}>Loading...</Text>
+                  </View>
+                )}
+                {useExpoImage ? (
+                  <ExpoImage
+                    source={require('../assets/images/chat.gif')}
+                    style={[styles.video, { opacity: gifLoading ? 0 : 1 }]}
+                    contentFit="contain"
+                    onError={(error) => {
+                      console.log('[GIF ERROR] ExpoImage failed, falling back to Image', error);
+                      setUseExpoImage(false);
+                    }}
+                    onLoad={() => {
+                      console.log('[GIF LOADED] Successfully loaded chat.gif');
+                      setGifLoadError(false);
+                      setGifLoading(false);
+                    }}
+                    cachePolicy="memory-disk"
+                    priority="high"
+                    recyclingKey={`chat-gif-${gifRefreshKey}`}
+                  />
+                ) : (
+                  <Image
+                    source={require('../assets/images/chat.gif')}
+                    style={[styles.video, { opacity: gifLoading ? 0 : 1 }]}
+                    resizeMode="contain"
+                    onError={(error) => {
+                      console.log('[GIF ERROR] Image also failed', error.nativeEvent);
+                      setGifLoadError(true);
+                      setGifLoading(false);
+                    }}
+                    onLoad={() => {
+                      console.log('[GIF LOADED] Image fallback loaded chat.gif');
+                      setGifLoadError(false);
+                      setGifLoading(false);
+                    }}
+                  />
+                )}
+              </>
+            ) : (
+              <View style={[styles.video, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#f8f8f8' }]}>
+                <Text style={styles.fallbackText}>Welcome to mDojo! 👋</Text>
+                <TouchableOpacity 
+                  style={styles.refreshButton}
+                  onPress={() => {
+                    setGifLoadError(false);
+                    setGifLoading(true);
+                    refreshGifs();
+                  }}
+                >
+                  <Text style={styles.refreshButtonText}>Retry GIF</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        )}
       </View>
     );
   };
@@ -745,8 +1781,7 @@ const handleFourthOptionSelect = (option) => {
                 ]}
                 onPress={() => handleOptionSelect(option.text, option.nextStepKey)}
               >
-                {option.emoji && <Text style={styles.optionEmoji}>{option.emoji}</Text>}
-                <Text style={styles.optionText}>{option.text}</Text>
+                <EmojiText style={styles.optionText} emojiSize={28}>{option.emoji ? option.emoji + ' ' + option.text : option.text}</EmojiText>
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -798,7 +1833,7 @@ const handleFourthOptionSelect = (option) => {
                 ]}
                 onPress={() => handleSecondaryOptionSelect(option)}
               >
-                <Text style={styles.optionText}>{option.text}</Text>
+                <EmojiText style={styles.optionText} emojiSize={28}>{option.text}</EmojiText>
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -844,10 +1879,10 @@ const handleFourthOptionSelect = (option) => {
             <TouchableOpacity
               key={index}
               style={styles.optionButton}
-              onPress={() => handleThirdOptionSelect(option)}
-            >
-              <Text style={styles.optionText}>{option.text}</Text>
-            </TouchableOpacity>
+                              onPress={() => handleThirdOptionSelect(option)}
+              >
+                <EmojiText style={styles.optionText} emojiSize={28}>{option.text}</EmojiText>
+              </TouchableOpacity>
           ))}
         </ScrollView>
       </View>
@@ -893,10 +1928,10 @@ const renderFourthOptions = () => {
             <TouchableOpacity
               key={index}
               style={styles.optionButton}
-              onPress={() => handleFourthOptionSelect(option)}
-            >
-              <Text style={styles.optionText}>{option.text}</Text>
-            </TouchableOpacity>
+                              onPress={() => handleFourthOptionSelect(option)}
+              >
+                <EmojiText style={styles.optionText} emojiSize={28}>{option.text}</EmojiText>
+              </TouchableOpacity>
           ))}
         </ScrollView>
       </View>
@@ -926,11 +1961,30 @@ const renderCurrentStep = () => {
     return (
       <View style={[styles.optionsContainer, { flexDirection: 'row', alignItems: 'center' }]}> {/* Make row */}
         <TextInput
+          ref={editTextInputRef}
           style={[styles.input, { flex: 1, marginRight: 8 }]}
           value={editText}
-          onChangeText={setEditText}
+          onChangeText={(text) => {
+            // Check if the original question_edit was empty or just whitespace
+            const originalText = editTextPlaceholder || '';
+            const isOriginalEmpty = !originalText.trim();
+            
+            if (isOriginalEmpty) {
+              // If original was empty, allow free text input
+              setEditText(text);
+            } else {
+              // If original has content, use bracket editing logic
+              const newText = handleBracketEdit(editText, text);
+              setEditText(newText);
+            }
+          }}
           placeholder={editTextPlaceholder}
           multiline
+          onFocus={() => {
+            if (scrollViewRef.current) {
+              scrollViewRef.current.scrollToEnd({ animated: true });
+            }
+          }}
         />
         <TouchableOpacity
           style={[styles.sendButton, !editText.trim() && styles.sendButtonDisabled]}
@@ -945,19 +1999,30 @@ const renderCurrentStep = () => {
   if (step.options) {
     return (
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'flex-start' }}>
-        {Object.entries(step.options).map(([optionText, nextStepKey]) => (
+        {visibleOptions.map((option, index) => (
           <TouchableOpacity
-            key={optionText}
-            style={[styles.optionButton, { alignSelf: 'flex-start', marginRight: 12, marginBottom: 12, minWidth: undefined, width: undefined, maxWidth: '90%' }]}
-            onPress={() => handleOptionSelect(optionText, nextStepKey)}
+            key={option.text}
+            style={[
+              styles.optionButton, 
+              { 
+                alignSelf: 'flex-start', 
+                marginRight: 12, 
+                marginBottom: 12, 
+                minWidth: undefined, 
+                width: undefined, 
+                maxWidth: '90%',
+                opacity: 1,
+                transform: [{ scale: 1 }]
+              }
+            ]}
+            onPress={() => handleOptionSelect(option.text, option.nextStepKey)}
           >
-            <Text style={styles.optionText}>{optionText}</Text>
+            <EmojiText style={styles.optionText} emojiSize={28}>{option.text}</EmojiText>
           </TouchableOpacity>
         ))}
       </View>
     );
   }
-  return null;
 };
     const renderInputField = () => {
       if (chatState === CHAT_STATES.ELABORATION) {
@@ -971,6 +2036,11 @@ const renderCurrentStep = () => {
             multiline
             onSubmitEditing={() => !isSendDisabled() && handleSend()}
             returnKeyType="send"
+            onFocus={() => {
+              if (scrollViewRef.current) {
+                scrollViewRef.current.scrollToEnd({ animated: true });
+              }
+            }}
           />
         );
       }
@@ -982,111 +2052,212 @@ const renderCurrentStep = () => {
   // ... (keep all your existing render functions like renderMoodSelection, 
   // renderFollowUpOptions, renderSecondaryOptions, renderInputField)
 
+  // Don't render until fonts are loaded
+  if (!fontsLoaded) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FF5A5F' }}>
+        <Text style={{ color: '#FFF', fontSize: 18, fontFamily: 'System' }}>Loading...</Text>
+      </View>
+    );
+  }
+
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.background}>
-        <View style={styles.chatContainer}>
-          <View style={styles.chatHeader}>
-            <Text style={styles.chatHeaderText}>mDojo</Text>
-          </View>
-          
-          <ScrollView 
-            ref={scrollViewRef}
-            contentContainerStyle={styles.messagesContainer}
-            style={styles.messagesScrollView}
-          >
-          {isTyping && (
-          <View style={styles.typingIndicator}>
-            <View style={styles.typingDot} />
-            <View style={[styles.typingDot, {marginHorizontal: 4}]} />
-            <View style={styles.typingDot} />
-          </View>
-        )}
-
-            {messages
-              .filter(msg => typeof msg.text === 'string' && msg.text.trim() !== '')
-              .map((msg) => (
-              <Animated.View 
-                key={msg.id} 
-                style={[
-                  styles.messageBubble, 
-                  msg.isUser ? styles.userBubble : styles.botBubble,
-                  { opacity: fadeAnim }
-                ]}
-              >
-                {msg.isGif ? (
-                  <Image 
-                    source={{ uri: msg.text }}
-                    style={styles.gifImage}
-                    resizeMode="contain"
-                  />
-                ) : (
-                  <Text style={msg.isUser ? styles.userText : styles.botText}>
-                    {msg.text}
-                  </Text>
-                )}
-                <Text style={[
-                  styles.timeText,
-                  msg.isUser ? styles.userTimeText : {}
-                ]}>
-                  {msg.time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </Text>
-              </Animated.View>
-            ))}
-            {renderMoodSelection()}
-            {renderCurrentStep()}
-            {renderFollowUpOptions()}
-            {renderSecondaryOptions()}
-            {renderThirdOptions()}
-            {renderFourthOptions()}
-          </ScrollView>
-
-          {(chatState === CHAT_STATES.ELABORATION) && (
-            <View style={styles.inputContainer}>
-              {renderInputField()}
-              <TouchableOpacity 
-                onPress={handleSend} 
-                style={[
-                  styles.sendButton,
-                  isSendDisabled() && styles.sendButtonDisabled
-                ]}
-                disabled={isSendDisabled()}
-              >
-                <MaterialIcons 
-                  name="send" 
-                  size={22} 
-                  color="#fff" 
-                  style={styles.sendIcon}
-                />
-              </TouchableOpacity>
+    <KeyboardAvoidingView 
+      style={{ flex: 1 }} 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    >
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.background}>
+          <View style={styles.chatContainer}>
+            <View style={styles.chatHeader}>
+              <Image 
+                source={require('../assets/mdojo.jpg')}
+                style={styles.chatHeaderLogo}
+                resizeMode="contain"
+              />
+            </View>
+            
+            <ScrollView 
+              ref={scrollViewRef}
+              contentContainerStyle={styles.messagesContainer}
+              style={styles.messagesScrollView}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+            {isTyping && (
+            <View style={styles.typingIndicator}>
+              <View style={styles.typingDot} />
+              <View style={[styles.typingDot, {marginHorizontal: 4}]} />
+              <View style={styles.typingDot} />
+            </View>
+          )}
+            {showThinkingDots && (
+            <View style={styles.thinkingIndicator}>
+              <Text style={styles.thinkingText}>Thinking</Text>
+              <View style={styles.thinkingDots}>
+                <View style={styles.thinkingDot} />
+                <View style={[styles.thinkingDot, {marginHorizontal: 2}]} />
+                <View style={styles.thinkingDot} />
+              </View>
             </View>
           )}
 
-          {/* End of conversation popup */}
-          <Modal
-            visible={showEndPopup}
-            transparent
-            animationType="fade"
-            onRequestClose={() => setShowEndPopup(false)}
-          >
-            <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' }}>
-              <View style={{ backgroundColor: '#fff', borderRadius: 20, padding: 32, alignItems: 'center', maxWidth: 320 }}>
-                <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 16, color: '#E31937' }}>Thank you!</Text>
-                <Text style={{ fontSize: 16, color: '#444', marginBottom: 24, textAlign: 'center' }}>
-                  Your feedback has been submitted. We appreciate your time!
-                </Text>
-                <TouchableOpacity
-                  onPress={() => setShowEndPopup(false)}
-                  style={{ backgroundColor: '#E31937', borderRadius: 16, paddingVertical: 10, paddingHorizontal: 32 }}
+              {messages
+                .filter(msg => typeof msg.text === 'string' && msg.text.trim() !== '')
+                .map((msg) => (
+                <Animated.View 
+                  key={msg.id} 
+                  style={[
+                    styles.messageBubble, 
+                    msg.isUser ? styles.userBubble : styles.botBubble,
+                    { opacity: fadeAnim }
+                  ]}
                 >
-                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>Close</Text>
+                  {msg.isGif ? (
+                    useExpoImage ? (
+                      <ExpoImage 
+                        source={{ uri: msg.text }}
+                        style={styles.gifImage}
+                        contentFit="contain"
+                        cachePolicy="memory-disk"
+                        priority="high"
+                        recyclingKey={`msg-gif-${msg.id}-${gifRefreshKey}`}
+                        onError={(error) => {
+                          console.log('[MESSAGE GIF ERROR] ExpoImage failed, falling back to Image', error);
+                          setUseExpoImage(false);
+                        }}
+                      />
+                    ) : (
+                      <Image 
+                        source={{ uri: msg.text }}
+                        style={styles.gifImage}
+                        resizeMode="contain"
+                        onError={(error) => console.log('[MESSAGE GIF ERROR] Image also failed', error.nativeEvent)}
+                      />
+                    )
+                  ) : msg.isWelcomeGif ? (
+                    useExpoImage ? (
+                      <ExpoImage 
+                        source={msg.gifSource}
+                        style={styles.gifImage}
+                        contentFit="contain"
+                        cachePolicy="memory-disk"
+                        priority="high"
+                        recyclingKey={`welcome-gif-${msg.id}-${gifRefreshKey}`}
+                        onError={(error) => {
+                          console.log('[WELCOME GIF ERROR] ExpoImage failed, falling back to Image', error);
+                          setUseExpoImage(false);
+                        }}
+                      />
+                    ) : (
+                      <Image 
+                        source={msg.gifSource}
+                        style={styles.gifImage}
+                        resizeMode="contain"
+                        onError={(error) => console.log('[WELCOME GIF ERROR] Image also failed', error.nativeEvent)}
+                      />
+                    )
+                  ) : (
+                    <EmojiText style={msg.isUser ? styles.userText : (msg.isWelcomeGif || msg.isWelcomeText) ? styles.welcomeText : styles.botText} emojiSize={32}>
+                      {msg.text}
+                    </EmojiText>
+                  )}
+                  <Text style={[
+                    styles.timeText,
+                    msg.isUser ? styles.userTimeText : {}
+                  ]}>
+                    {msg.time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </Text>
+                </Animated.View>
+              ))}
+              {renderMoodSelection()}
+              {renderCurrentStep()}
+              {renderFollowUpOptions()}
+              {renderSecondaryOptions()}
+              {renderThirdOptions()}
+              {renderFourthOptions()}
+            </ScrollView>
+
+            {(chatState === CHAT_STATES.ELABORATION) && (
+              <View style={styles.inputContainer}>
+                {renderInputField()}
+                <TouchableOpacity 
+                  onPress={handleSend} 
+                  style={[
+                    styles.sendButton,
+                    isSendDisabled() && styles.sendButtonDisabled
+                  ]}
+                  disabled={isSendDisabled()}
+                >
+                  <MaterialIcons 
+                    name="send" 
+                    size={22} 
+                    color="#fff" 
+                    style={styles.sendIcon}
+                  />
                 </TouchableOpacity>
               </View>
-            </View>
-          </Modal>
+            )}
+
+            {/* End of conversation popup */}
+            <Modal
+              visible={showEndPopup}
+              transparent
+              animationType="fade"
+              onRequestClose={() => setShowEndPopup(false)}
+            >
+              <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' }}>
+                <View style={{ backgroundColor: '#fff', borderRadius: 20, padding: 32, alignItems: 'center', maxWidth: 320 }}>
+                  <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 16, color: '#E31937' }}>Thank you!</Text>
+                  <Text style={{ fontSize: 16, color: '#444', marginBottom: 24, textAlign: 'center' }}>
+                    Your feedback has been submitted. We appreciate your time!
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => { setShowEndPopup(false); router.replace('/login'); }}
+                    style={{ backgroundColor: '#E31937', borderRadius: 16, paddingVertical: 10, paddingHorizontal: 32 }}
+                  >
+                    <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>Close</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </Modal>
+
+                       {/* Inactivity prompt */}
+             {showInactivityPrompt && (
+               <Modal
+                 visible={showInactivityPrompt}
+                 transparent
+                 animationType="fade"
+                 onRequestClose={handleInactivityPromptTap}
+               >
+                 <TouchableOpacity
+                   style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)' }}
+                   onPress={handleInactivityPromptTap}
+                 >
+                   <View style={{ backgroundColor: '#fff', borderRadius: 15, padding: 20, alignItems: 'center' }}>
+                     <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#E31937', marginBottom: 10 }}>
+                       Still there?
+                     </Text>
+                     <Text style={{ fontSize: 14, color: '#666', textAlign: 'center', marginBottom: 20 }}>
+                       Take your time — just tap when ready.
+                     </Text>
+                     <TouchableOpacity
+                       onPress={handleInactivityPromptTap}
+                       style={{ backgroundColor: '#E31937', borderRadius: 10, paddingVertical: 10, paddingHorizontal: 20 }}
+                     >
+                       <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>
+                         Continue
+                       </Text>
+                     </TouchableOpacity>
+                   </View>
+                 </TouchableOpacity>
+               </Modal>
+             )}
+          </View>
         </View>
-      </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -1129,9 +2300,8 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.2)',
   },
   chatHeader: {
-   
-    backgroundColor: '#E31937',
-    padding: 20,
+    backgroundColor: '#f5f5f5',
+    padding: 0,
     justifyContent: 'center',
     alignItems: 'center',
     borderBottomLeftRadius: 20,
@@ -1141,16 +2311,17 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+    position: 'relative',
   },
-  chatHeaderText: {
-    color: '#FFF',
-    fontSize: 24,
-    fontWeight: '800',
-    letterSpacing: 1,
-    textShadowColor: 'rgba(0,0,0,0.1)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+
+  chatHeaderLogo: {
+    width: 1020,
+    height: 90,
+    borderRadius: 10,
+    backgroundColor: 'transparent',
   },
+
+
   messagesScrollView: {
     flex: 1,
     backgroundColor: '#FAFAFA',
@@ -1161,7 +2332,9 @@ const styles = StyleSheet.create({
   },
   messageBubble: {
     maxWidth: '80%',
-    padding: 14,
+    padding: 20,
+    paddingTop: 22,
+    paddingBottom: 22,
     borderRadius: 18,
     marginBottom: 12,
     shadowColor: '#000',
@@ -1169,6 +2342,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
+    minHeight: 60,
+    justifyContent: 'center',
   },
   botBubble: {
     backgroundColor: '#FFF',
@@ -1189,13 +2364,93 @@ const styles = StyleSheet.create({
   botText: {
     color: '#333',
     fontSize: 16,
-    lineHeight: 22,
+    lineHeight: 24,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'Arial' : 'sans-serif',
+  },
+  welcomeText: {
+    color: '#333',
+    fontSize: 22,
+    lineHeight: 28,
+    fontWeight: 'bold',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'Arial' : 'sans-serif',
+  },
+  // Mood Selection Styles
+  moodSelectionContainer: {
+    marginBottom: 20,
+    width: '100%',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  moodGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    marginBottom: 20,
+  },
+  moodCard: {
+    width: '30%',
+    aspectRatio: 1,
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 10,
+    marginBottom: 15,
+    borderWidth: 2,
+    borderColor: '#EEE',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  selectedMoodCard: {
+    borderColor: '#E31937',
+    backgroundColor: '#FFF5F6',
+  },
+  moodGif: {
+    width: 75,
+    height: 70,
+    marginBottom: 12,
+  },
+  moodLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  selectionIndicator: {
+    position: 'absolute',
+    bottom: -6,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  debugText: {
+    display: 'none',
+    fontSize: 12,
+    color: '#999',
+    textAlign: 'center',
+    marginBottom: 10,
   },
   userText: {
     color: '#FFF',
     fontSize: 16,
-    lineHeight: 22,
+    lineHeight: 24,
     fontWeight: '500',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'Arial' : 'sans-serif',
   },
   timeText: {
     fontSize: 10,
@@ -1229,7 +2484,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'center',
     includeFontPadding: false,
     color: '#333',
-    fontFamily: 'System',
+    fontFamily: 'SpaceMono-Regular',
   },
   employeeIdInput: {
     fontFamily: 'monospace',
@@ -1274,6 +2529,7 @@ const styles = StyleSheet.create({
     color: '#444',
     marginBottom: 20,
     textAlign: 'center',
+    fontFamily: 'SpaceMono-Regular',
   },
   moodGrid: {
     flexDirection: 'row',
@@ -1286,11 +2542,9 @@ const styles = StyleSheet.create({
     aspectRatio: 1,
     backgroundColor: '#FFF',
     borderRadius: 16,
-    borderWidth: 2,
-    borderColor: '#FFF',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 12,
+    padding: 16,
     marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -1312,10 +2566,11 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   moodLabel: {
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: 'bold',
     color: '#444',
     textAlign: 'center',
+    fontFamily: 'SpaceMono-Regular',
   },
   selectionIndicator: {
     position: 'absolute',
@@ -1361,10 +2616,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
     marginLeft: 8,
     fontWeight: '500',
+    fontFamily: 'SpaceMono-Regular',
   },
   optionEmoji: {
-    fontSize: 22,
+    fontSize: 28,
     color: '#FFF',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   gifImage: {
     width: 220,
@@ -1384,19 +2642,49 @@ typingDot: {
   borderRadius: 4,
   backgroundColor: '#CCC',
 },
+thinkingIndicator: {
+  flexDirection: 'row',
+  alignSelf: 'flex-start',
+  marginBottom: 12,
+  marginLeft: 16,
+  alignItems: 'center',
+  backgroundColor: '#f0f0f0',
+  paddingHorizontal: 12,
+  paddingVertical: 8,
+  borderRadius: 16,
+},
+  thinkingText: {
+    fontSize: 14,
+    color: '#666',
+    marginRight: 8,
+    fontStyle: 'italic',
+    fontFamily: 'SpaceMono-Regular',
+  },
+thinkingDots: {
+  flexDirection: 'row',
+  alignItems: 'center',
+},
+thinkingDot: {
+  width: 6,
+  height: 6,
+  borderRadius: 3,
+  backgroundColor: '#E31937',
+  opacity: 0.7,
+},
 mahendraContainer: {
   position: 'absolute',
   top: 40,
   left: 20,
   zIndex: 10,
 },
-mahendraText: {
-  fontSize: 28,
-  fontWeight: 'bold',
-  color: 'rgb(255, 255, 255)',
-  letterSpacing: 1,
-  textTransform: 'uppercase',
-},
+  mahendraText: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: 'rgb(255, 255, 255)',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    fontFamily: 'SpaceMono-Regular',
+  },
 mlogo: {
   position: 'absolute',
   top: 40,
@@ -1454,6 +2742,67 @@ scrollArrowButton: {
   shadowRadius: 4,
   elevation: 3,
 },
+  videoContainer: {
+    width: '100%',
+    maxWidth: 400,
+    height: 200,
+    marginTop: 30,
+    marginHorizontal: 0,
+    borderRadius: 15,
+    overflow: 'hidden',
+    backgroundColor: 'transparent',
+    position: 'relative',
+    alignSelf: 'center',
+  },
+  video: {
+    width: '100%',
+    height: '100%',
+  },
+  fallbackText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#E31937',
+    textAlign: 'center',
+    fontFamily: 'SpaceMono-Regular',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#666',
+    fontFamily: 'SpaceMono-Regular',
+  },
+  refreshButton: {
+    backgroundColor: '#E31937',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginTop: 10,
+  },
+  refreshButtonText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '600',
+    fontFamily: 'SpaceMono-Regular',
+  },
+videoDebugText: {
+  position: 'absolute',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  backgroundColor: 'rgba(0,0,0,0.5)',
+  color: '#fff',
+  fontSize: 16,
+  fontWeight: 'bold',
+  textAlign: 'center',
+  paddingTop: 10,
+},
+  debugText: {
+    fontSize: 12,
+    color: '#999',
+    marginBottom: 10,
+    textAlign: 'center',
+    fontFamily: 'SpaceMono-Regular',
+  },
 });
 
 export default ChatScreen;

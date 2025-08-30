@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "TractorApp",
+    "name": "mDojo",
     "slug": "TractorAppExpo",
-    "version": "1.0.0",
+    "version": "1.0.0", 
     "orientation": "portrait",
-    "icon": "./assets/images/logo.png",
-    "scheme": "tractorappexpo",
+    "icon": "./assets/mdojo logo_icon_Vector.png",
+    "scheme": "mdojo",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "plugins": [
@@ -13,7 +13,7 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/mdojo logo_icon_Vector.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
@@ -22,7 +22,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/images/notification-icon.png",
+          "icon": "./assets/mdojo logo_icon_Vector.png",
           "color": "#ffffff",
           "sounds": []
         }
@@ -37,7 +37,7 @@
       "fallbackToCacheTimeout": 0
     },
     "ios": {
-      "bundleIdentifier": "com.yourcompany.tractorapp",
+      "bundleIdentifier": "com.rucha_55.mahindrachatbot",
       "buildNumber": "1.0.0",
       "supportsTablet": true
     },
@@ -45,12 +45,15 @@
       "package": "com.rucha_55.mahindrachatbot",
       "versionCode": 1,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/logo.png",
+        "foregroundImage": "./assets/mdojo logo_icon_Vector.png",
         "backgroundColor": "#ffffff"
       },
       "permissions": [
         "RECEIVE_BOOT_COMPLETED",
-        "VIBRATE"
+        "VIBRATE",
+        "POST_NOTIFICATIONS",
+        "SCHEDULE_EXACT_ALARM",
+        "USE_EXACT_ALARM"
       ],
       "googleServicesFile": "./google-services.json",
       "edgeToEdgeEnabled": true

@@ -238,7 +238,7 @@ const LoginScreen = () => {
       >
         <Animated.View style={[styles.logoContainer, containerAnimatedStyle]}>
           <Image
-            source={require('../assets/images/mahindra-logo.png')}
+            source={require('../assets/images/icon1.jpg')}
             style={styles.logo}
             resizeMode="contain"
           />
