@@ -3,11 +3,14 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import * as TaskManager from 'expo-task-manager';
+import * as Notifications from 'expo-notifications';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, LogBox, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, LogBox, Platform, StyleSheet, Text, View } from 'react-native';
 import 'react-native-reanimated';
 import { db } from '../config/firebase';
 import NotificationService from '../services/NotificationService';
+import { NOTIFICATION_TASK, defineNotificationTask } from '../tasks';
 
 // Ignore specific warnings
 LogBox.ignoreLogs([
@@ -59,12 +62,44 @@ export default function RootLayout() {
     initializeFirebase();
   }, []);
 
-  // Initialize notifications when app starts
+  // Initialize notifications and background tasks when app starts
   useEffect(() => {
     const initializeNotifications = async () => {
       try {
+        // Initialize notification service
         await NotificationService.initializeNotifications();
-        console.log('Notification service initialized');
+        
+        // Define the background task
+        defineNotificationTask();
+        
+        // Register background task
+        if (Platform.OS === 'android') {
+          await Notifications.setNotificationChannelAsync('default', {
+            name: 'default',
+            importance: Notifications.AndroidImportance.MAX,
+            vibrationPattern: [0, 250, 250, 250],
+            lightColor: '#FF231F7C',
+          });
+          
+          // Register the background task for Android
+          await Notifications.registerTaskAsync(NOTIFICATION_TASK);
+          
+          // Schedule a repeating trigger for the task (every 24 hours)
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: 'mDojo',
+              body: 'Check your daily updates!',
+              data: { type: 'background-task' },
+            },
+            trigger: {
+              seconds: 60 * 60 * 24, // 24 hours
+              repeats: true,
+              channelId: 'default',
+            },
+          });
+        }
+        
+        console.log('Notification service and background task initialized');
       } catch (error) {
         console.error('Error initializing notifications:', error);
       }
@@ -73,6 +108,15 @@ export default function RootLayout() {
     if (firebaseInitialized) {
       initializeNotifications();
     }
+    
+    // Cleanup function
+    return () => {
+      // Unregister the task when component unmounts
+      if (Platform.OS === 'android') {
+        Notifications.cancelAllScheduledNotificationsAsync();
+        Notifications.unregisterTaskAsync(NOTIFICATION_TASK);
+      }
+    };
   }, [firebaseInitialized]);
 
   // Show loading state while fonts and Firebase are initializing

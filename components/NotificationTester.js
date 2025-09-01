@@ -1,13 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import {
     Alert,
+    Platform,
     ScrollView,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
 } from 'react-native';
+import * as Notifications from 'expo-notifications';
 import NotificationService from '../services/NotificationService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const NotificationTester = () => {
   const [scheduledNotifications, setScheduledNotifications] = useState([]);
@@ -57,12 +60,51 @@ const NotificationTester = () => {
 
   const resetInstallDate = async () => {
     try {
-      const AsyncStorage = require('@react-native-async-storage/async-storage');
       await AsyncStorage.removeItem('app_install_date');
       await AsyncStorage.removeItem('notification_scheduled');
-      Alert.alert('Success', 'Install date reset. Restart app to trigger notification.');
+      await AsyncStorage.removeItem('last_notification_date');
+      Alert.alert('Success', 'Install date and notification history reset. Restart app to trigger notifications.');
     } catch (error) {
       Alert.alert('Error', 'Failed to reset install date');
+    }
+  };
+
+  const testDailyNotification = async () => {
+    try {
+      // Schedule a test notification for 10 seconds from now
+      const trigger = new Date();
+      trigger.setSeconds(trigger.getSeconds() + 10);
+      
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: 'Test Daily Notification',
+          body: 'This is a test of the daily notification system!',
+          data: { type: 'test-daily' },
+          sound: 'default',
+          priority: Notifications.AndroidNotificationPriority.HIGH,
+        },
+        trigger: {
+          date: trigger,
+          channelId: 'default',
+        },
+      });
+      
+      Alert.alert('Success', 'Test daily notification scheduled for 10 seconds from now');
+      setTimeout(loadScheduledNotifications, 1000);
+    } catch (error) {
+      console.error('Error scheduling test notification:', error);
+      Alert.alert('Error', 'Failed to schedule test notification');
+    }
+  };
+
+  const scheduleDailyNotification = async () => {
+    try {
+      await NotificationService.scheduleDailyNotification();
+      Alert.alert('Success', 'Daily notification scheduled for 10 AM');
+      setTimeout(loadScheduledNotifications, 1000);
+    } catch (error) {
+      console.error('Error scheduling daily notification:', error);
+      Alert.alert('Error', 'Failed to schedule daily notification');
     }
   };
 
@@ -76,21 +118,36 @@ const NotificationTester = () => {
         </Text>
       </View>
       
+      <Text style={styles.sectionTitle}>Daily Notifications</Text>
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity style={styles.button} onPress={testDailyNotification}>
+          <Text style={styles.buttonText}>Test Daily Notification (10s)</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.button} onPress={scheduleDailyNotification}>
+          <Text style={styles.buttonText}>Schedule Daily at 10 AM</Text>
+        </TouchableOpacity>
+      </View>
+
+      <Text style={styles.sectionTitle}>Test Notifications</Text>
       <View style={styles.buttonContainer}>
         <TouchableOpacity style={styles.button} onPress={testImmediateNotification}>
-          <Text style={styles.buttonText}>Test Notification (5 sec)</Text>
+          <Text style={styles.buttonText}>Test Immediate (5s)</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.button} onPress={scheduleSingleNotification}>
-          <Text style={styles.buttonText}>Schedule Single Notification (2-5 days)</Text>
+          <Text style={styles.buttonText}>Schedule Single (2-5 days)</Text>
         </TouchableOpacity>
+      </View>
 
-        <TouchableOpacity style={styles.button} onPress={cancelAllNotifications}>
+      <Text style={styles.sectionTitle}>Management</Text>
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity style={[styles.button, styles.dangerButton]} onPress={cancelAllNotifications}>
           <Text style={styles.buttonText}>Cancel All Notifications</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.button} onPress={resetInstallDate}>
-          <Text style={styles.buttonText}>Reset Install Date</Text>
+        <TouchableOpacity style={[styles.button, styles.warningButton]} onPress={resetInstallDate}>
+          <Text style={styles.buttonText}>Reset All Settings</Text>
         </TouchableOpacity>
       </View>
 
@@ -153,11 +210,18 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   button: {
-    backgroundColor: '#E31937', // mDojo brand color
+    backgroundColor: '#007AFF',
     padding: 15,
-    borderRadius: 8,
-    marginBottom: 10,
+    borderRadius: 10,
+    marginVertical: 10,
     alignItems: 'center',
+    minWidth: '100%',
+  },
+  dangerButton: {
+    backgroundColor: '#FF3B30',
+  },
+  warningButton: {
+    backgroundColor: '#FF9500',
   },
   buttonText: {
     color: 'white',
@@ -172,8 +236,10 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
+    marginTop: 20,
     marginBottom: 10,
-    color: '#333',
+    color: '#007AFF',
+    textAlign: 'center',
   },
   noNotifications: {
     textAlign: 'center',

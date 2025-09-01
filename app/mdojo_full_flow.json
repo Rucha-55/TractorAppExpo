@@ -179,13 +179,13 @@
   },
   "Sad": {
     "step1": {
-      "question": "I’m really sorry to hear you’re feeling low today.sometimes, and it’s okay to talk about it.\nEveryone has tough days Can you tell me what’s weighing on you at work right now?",
+      "question": "I’m really sorry to hear you’re feeling low today.\nEveryone has tough days sometimes, and it’s okay to talk about it.\n Can you tell me what’s weighing on you at work right now?",
       "options": {
         "‍💼 Manager-related challenges": "step2",
         "👥 Difficult interactions with colleagues": "step2", 
-        " Company culture or policies": "step2",
+        "🏭 Company culture or policies": "step2",
         "❓ Lack of role clarity or direction": "step2",
-        "️ Workspace, tools, or infrastructure issues": "step2",
+        "🔧 Workspace, tools, or infrastructure issues": "step2",
         "⚖️ Struggling with work-life balance": "step2",
         "😔 Feeling emotionally exhausted or overwhelmed": "step2"
       },

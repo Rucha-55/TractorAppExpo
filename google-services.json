@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "824885367826",
+    "project_id": "mahindraproject-b0a6f",
+    "storage_bucket": "mahindraproject-b0a6f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:824885367826:android:269b390a8c90fc86ee74cb",
+        "android_client_info": {
+          "package_name": "com.mdojo.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCKBabR2ugePaqUhaGy53x411H-3yhIOqE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

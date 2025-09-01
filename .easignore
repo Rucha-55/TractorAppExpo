@@ -1,0 +1,13 @@
+# EAS ignore file to reduce upload size
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.log
+.git/
+node_modules/
+.expo/
+.DS_Store
+*.tmp
+*.temp
+

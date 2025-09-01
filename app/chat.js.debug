@@ -24,7 +24,7 @@ import {
 } from 'react-native';
 import { db } from '../config/firebase';
 import mdojoFullFlow from './mdojo_full_flow.json';
-import { matchStepFromText } from './utils/stepMatcher';
+import { matchStepFromText } from '../utils/stepMatcher';
 
 const { width, height } = Dimensions.get('window');
 
@@ -1245,34 +1245,35 @@ const goToStepWithFlow = (stepKey, flowOverride) => {
     let dynamicStepKey = step1ToDynamicStepMap[optionText];
     console.log('[DEBUG] Direct mapping result:', dynamicStepKey);
     
-    // If not found, do a text-based match using our utility
+    // If no match found, try text-based matching
+    if (!dynamicStepKey) {
+      dynamicStepKey = matchStepFromText(optionText, 'Sad');
+      console.log('[DEBUG] Text-based matching result:', dynamicStepKey);
+    }
+    
+    // If not found, do a text-based match
     if (!dynamicStepKey) {
       console.log('[DEBUG] Trying text-based matching for:', optionText);
-      dynamicStepKey = matchStepFromText(optionText, 'Sad');
       
-      if (dynamicStepKey) {
-        console.log('[DEBUG] Found match using utility:', dynamicStepKey);
-      } else {
-        // Fallback to manual matching if utility fails
-        const textMatches = {
-          "Manager-related": "step3_manager_related_challenges",
-          "Difficult interactions": "step3_difficult_interactions_with_colleagues",
-          "Company culture": "step3_company_culture_or_policies",
-          "Lack of role": "step3_lack_of_role_clariy_or_direction",
-          "Workspace, tools": "step3_workspace_tools_or_infrastructure_issues",
-          "infrastructure issues": "step3_workspace_tools_or_infrastructure_issues",
-          "Struggling with work-life": "step3_struggling_with_work_life_balance",
-          "emotionally exhausted": "step3_feeling_emotionally_exhausted_or_overwhelmed",
-          "overwhelmed": "step3_feeling_emotionally_exhausted_or_overwhelmed"
-        };
-        
-        // Find matching text
-        for (const [text, step] of Object.entries(textMatches)) {
-          if (optionText.includes(text)) {
-            dynamicStepKey = step;
-            console.log('[DEBUG] Found text match:', text);
-            break;
-          }
+      // Common phrases to identify step mappings
+      const textMatches = {
+        "Manager-related": "step3_manager_related_challenges",
+        "Difficult interactions": "step3_difficult_interactions_with_colleagues",
+        "Company culture": "step3_company_culture_or_policies",
+        "Lack of role": "step3_lack_of_role_clariy_or_direction",
+        "Workspace, tools": "step3_workspace_tools_or_infrastructure_issues",
+        "infrastructure issues": "step3_workspace_tools_or_infrastructure_issues",
+        "Struggling with work-life": "step3_struggling_with_work_life_balance",
+        "emotionally exhausted": "step3_feeling_emotionally_exhausted_or_overwhelmed",
+        "overwhelmed": "step3_feeling_emotionally_exhausted_or_overwhelmed"
+      };
+      
+      // Find matching text
+      for (const [text, step] of Object.entries(textMatches)) {
+        if (optionText.includes(text)) {
+          dynamicStepKey = step;
+          console.log('[DEBUG] Found text match:', text);
+          break;
         }
       }
     }
@@ -1306,56 +1307,36 @@ const goToStepWithFlow = (stepKey, flowOverride) => {
     if (!dynamicStepKey) {
       console.log('[DEBUG] No sadReasonKey found, trying text-based matching');
       
-      // Try to find the answer from step1 in QA pairs
-      let step1Answer = null;
+      // Common phrases to identify step mappings
+      const textMatches = {
+        "Manager-related": "step3_manager_related_challenges",
+        "Difficult interactions": "step3_difficult_interactions_with_colleagues",
+        "Company culture": "step3_company_culture_or_policies",
+        "Lack of role": "step3_lack_of_role_clariy_or_direction",
+        "Workspace, tools": "step3_workspace_tools_or_infrastructure_issues",
+        "infrastructure issues": "step3_workspace_tools_or_infrastructure_issues",
+        "Struggling with work-life": "step3_struggling_with_work_life_balance",
+        "emotionally exhausted": "step3_feeling_emotionally_exhausted_or_overwhelmed",
+        "overwhelmed": "step3_feeling_emotionally_exhausted_or_overwhelmed"
+      };
+      
+      // Find matching text in QA pairs
       for (const pair of qaPairs) {
         if (pair.question === currentFlow.step1?.question) {
-          step1Answer = pair.answer;
-          break;
-        }
-      }
-      
-      // If we found an answer, try to match it using our utility
-      if (step1Answer) {
-        console.log('[DEBUG] Found step1 answer in QA pairs:', step1Answer);
-        dynamicStepKey = matchStepFromText(step1Answer, 'Sad');
-        
-        if (dynamicStepKey) {
-          console.log('[DEBUG] Found match using utility for QA pair:', dynamicStepKey);
-        }
-      }
-      
-      // If still no match, fallback to manual text matching
-      if (!dynamicStepKey) {
-        // Common phrases to identify step mappings
-        const textMatches = {
-          "Manager-related": "step3_manager_related_challenges",
-          "Difficult interactions": "step3_difficult_interactions_with_colleagues",
-          "Company culture": "step3_company_culture_or_policies",
-          "Lack of role": "step3_lack_of_role_clariy_or_direction",
-          "Workspace, tools": "step3_workspace_tools_or_infrastructure_issues",
-          "infrastructure issues": "step3_workspace_tools_or_infrastructure_issues",
-          "Struggling with work-life": "step3_struggling_with_work_life_balance",
-          "emotionally exhausted": "step3_feeling_emotionally_exhausted_or_overwhelmed",
-          "overwhelmed": "step3_feeling_emotionally_exhausted_or_overwhelmed"
-        };
-        
-        // If we have a step1 answer, try to match it
-        if (step1Answer) {
           for (const [text, step] of Object.entries(textMatches)) {
-            if (step1Answer.includes(text)) {
+            if (pair.answer.includes(text)) {
               dynamicStepKey = step;
               console.log('[DEBUG] Found text match in QA pair:', text);
               break;
             }
           }
         }
-        
-        // If still no match, use a default step
-        if (!dynamicStepKey) {
-          dynamicStepKey = "step3_manager_related_challenges";
-          console.log('[DEBUG] Using default dynamic step key');
-        }
+      }
+      
+      // If still no match, use a default step
+      if (!dynamicStepKey) {
+        dynamicStepKey = "step3_manager_related_challenges";
+        console.log('[DEBUG] Using default dynamic step key');
       }
     }
     
@@ -1384,6 +1365,7 @@ const goToStepWithFlow = (stepKey, flowOverride) => {
     }
     return;
   }
+  }
   // Track Mad step1 selection and map to correct dynamic step names
   if (currentFlow && currentFlow === mdojoFullFlow.Mad && currentStep === 'step1') {
     // Map step1 selections to the correct dynamic step names for Mad flow
@@ -1407,39 +1389,12 @@ const goToStepWithFlow = (stepKey, flowOverride) => {
     // Try with the emoji
     let dynamicStepKey = step1ToDynamicStepMap[optionText];
     
-    // If not found, try with our utility function
+    // If not found, use our helper to try text matching
     if (!dynamicStepKey) {
-      console.log('[DEBUG] Trying text-based matching for Mad flow:', optionText);
+      console.log('[DEBUG] Direct match failed, trying helper function');
       dynamicStepKey = matchStepFromText(optionText, 'Mad');
-      
-      if (dynamicStepKey) {
-        console.log('[DEBUG] Found match using utility for Mad flow:', dynamicStepKey);
-      } else {
-        // Fallback to extracting just the text part (without emoji)
-        const textWithoutEmoji = optionText.replace(/^\S+\s+/, '').trim();
-        console.log('[DEBUG] Looking for fallback mapping for:', textWithoutEmoji);
-        
-        // Generic text matcher for all options
-        const textToStepMapping = {
-          "Frustration with manager": "step3_frustration_with_manager_or_leadership_decisions",
-          "Tension or conflict": "step3_tension_or_conflict_with_colleagues",
-          "Unfair workload": "step3_unfair_workload_or_lack_of_recognition",
-          "Missed deadlines": "step3_missed_deadlines_or_miscommunication",
-          "company policies": "step3_frustration_with_company_policies_or_red_tape",
-          "Feeling stuck": "step3_feeling_stuck_or_blocked_in_your_work",
-          "Too much change": "step3_too_much_change_or_unclear_direction",
-          "Infrastructure": "step3_infrastructure_or_facility_related_issues"
-        };
-        
-        // Find matching text
-        for (const [text, step] of Object.entries(textToStepMapping)) {
-          if (optionText.includes(text)) {
-            dynamicStepKey = step;
-            console.log('[DEBUG] Found text match mapping for:', text, 'to step:', step);
-            break;
-          }
-        }
-      }
+      console.log('[DEBUG] Helper matching result:', dynamicStepKey);
+    }
     }
     
     if (dynamicStepKey) {
@@ -1472,56 +1427,31 @@ const goToStepWithFlow = (stepKey, flowOverride) => {
     if (!dynamicStepKey) {
       console.log('[DEBUG] No madReasonKey found, trying text-based matching for:', optionText);
       
-      // Try to find the answer from step1 in QA pairs
-      let step1Answer = null;
-      for (const pair of qaPairs) {
-        if (pair.question === currentFlow.step1?.question) {
-          step1Answer = pair.answer;
+      // Common phrases to identify step mappings
+      const textMatches = {
+        "Frustration with manager": "step3_frustration_with_manager_or_leadership_decisions",
+        "Tension or conflict": "step3_tension_or_conflict_with_colleagues",
+        "Unfair workload": "step3_unfair_workload_or_lack_of_recognition",
+        "Missed deadlines": "step3_missed_deadlines_or_miscommunication",
+        "company policies": "step3_frustration_with_company_policies_or_red_tape",
+        "Feeling stuck": "step3_feeling_stuck_or_blocked_in_your_work",
+        "Too much change": "step3_too_much_change_or_unclear_direction",
+        "Infrastructure": "step3_infrastructure_or_facility_related_issues"
+      };
+      
+      // Find matching text
+      for (const [text, step] of Object.entries(textMatches)) {
+        if (optionText.includes(text)) {
+          dynamicStepKey = step;
+          console.log('[DEBUG] Found text match:', text);
           break;
         }
       }
       
-      // If we found an answer, try to match it using our utility
-      if (step1Answer) {
-        console.log('[DEBUG] Found step1 answer in QA pairs:', step1Answer);
-        dynamicStepKey = matchStepFromText(step1Answer, 'Mad');
-        
-        if (dynamicStepKey) {
-          console.log('[DEBUG] Found match using utility for Mad flow QA pair:', dynamicStepKey);
-        }
-      } else {
-        // Try using the current optionText with the utility
-        dynamicStepKey = matchStepFromText(optionText, 'Mad');
-      }
-      
-      // If still no match, fallback to manual text matching
+      // If still no match, use a default step
       if (!dynamicStepKey) {
-        // Common phrases to identify step mappings
-        const textMatches = {
-          "Frustration with manager": "step3_frustration_with_manager_or_leadership_decisions",
-          "Tension or conflict": "step3_tension_or_conflict_with_colleagues",
-          "Unfair workload": "step3_unfair_workload_or_lack_of_recognition",
-          "Missed deadlines": "step3_missed_deadlines_or_miscommunication",
-          "company policies": "step3_frustration_with_company_policies_or_red_tape",
-          "Feeling stuck": "step3_feeling_stuck_or_blocked_in_your_work",
-          "Too much change": "step3_too_much_change_or_unclear_direction",
-          "Infrastructure": "step3_infrastructure_or_facility_related_issues"
-        };
-        
-        // Try with the current option text
-        for (const [text, step] of Object.entries(textMatches)) {
-          if (optionText.includes(text)) {
-            dynamicStepKey = step;
-            console.log('[DEBUG] Found text match:', text);
-            break;
-          }
-        }
-        
-        // If still no match, use a default step
-        if (!dynamicStepKey) {
-          dynamicStepKey = "step3_frustration_with_manager_or_leadership_decisions";
-          console.log('[DEBUG] Using default dynamic step key');
-        }
+        dynamicStepKey = "step3_frustration_with_manager_or_leadership_decisions";
+        console.log('[DEBUG] Using default dynamic step key');
       }
     }
     
@@ -1549,7 +1479,8 @@ const goToStepWithFlow = (stepKey, flowOverride) => {
       goToStep('step5');
     }
     return;
-  }
+  } // End of dynamic step handling
+  
   // Default behavior
   const userMsg = {
     id: Date.now(),
@@ -2421,13 +2352,9 @@ const renderCurrentStep = () => {
               onRequestClose={() => setShowEndPopup(false)}
             >
               <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' }}>
-                <View style={{ backgroundColor: '#fff', borderRadius: 20, padding: 32, alignItems: 'center', maxWidth: 360 }}>
-                  <Image 
-                    source={require('../assets/images/thank.gif')} 
-                    style={{ width: 200, height: 200, marginTop: 10, marginBottom: 20, borderRadius: 12 }}
-                    resizeMode="cover"
-                  />
-                  <Text style={{ fontSize: 17, color: '#444', marginBottom: 24, textAlign: 'center', lineHeight: 24, fontWeight: '500' }}>
+                <View style={{ backgroundColor: '#fff', borderRadius: 20, padding: 32, alignItems: 'center', maxWidth: 320 }}>
+                  <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 16, color: '#E31937' }}>Thank you!</Text>
+                  <Text style={{ fontSize: 16, color: '#444', marginBottom: 24, textAlign: 'center' }}>
                     Your feedback has been submitted. We appreciate your time!
                   </Text>
                   <TouchableOpacity
