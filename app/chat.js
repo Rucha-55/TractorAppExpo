@@ -149,6 +149,7 @@ const ChatScreen = () => {
   const [madReasonKey, setMadReasonKey] = useState(null);
   const [conversationResponses, setConversationResponses] = useState([]);
   const [showEndPopup, setShowEndPopup] = useState(false);
+  const [showFinalOptions, setShowFinalOptions] = useState(false);
   const router = useRouter();
   const [qaPairs, setQaPairs] = useState([]);
   const [visibleOptions, setVisibleOptions] = useState([]);
@@ -847,10 +848,14 @@ const ChatScreen = () => {
       }
     };
 
-    // For web
-    if (Platform.OS === 'web') {
+    // For web only - properly check if window exists
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
       window.addEventListener('beforeunload', handleBeforeUnload);
-      return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+      return () => {
+        if (typeof window !== 'undefined') {
+          window.removeEventListener('beforeunload', handleBeforeUnload);
+        }
+      };
     }
   }, [loggedInEmployeeId, messages, chatState]);
 
@@ -1728,13 +1733,20 @@ const handleFourthOptionSelect = (option) => {
 };
 
   const showFinalMessages = async () => {
-    console.log('[DEBUG] Entered showFinalMessages'); // Debug log
-    console.log('[DEBUG] Final qaPairs before saving:', qaPairs);
-    
+    // Instead of immediately saving and showing the thank-you modal,
+    // present a small interactive UI so the user can choose to elaborate
+    // or submit immediately. The actual save happens in completeConversation().
+    console.log('[DEBUG] Entered showFinalMessages -> showing final options');
+    setChatState(CHAT_STATES.FINAL_MESSAGE);
+    setShowFinalOptions(true);
+  };
+
+  const completeConversation = async () => {
+    console.log('[DEBUG] completeConversation called');
     try {
       // Set chat state to completed first
       setChatState(CHAT_STATES.THANK_YOU);
-      
+
       // Store conversation summary in Firestore
       const chatQAObject = {};
       qaPairs.forEach(pair => {
@@ -1749,24 +1761,61 @@ const handleFourthOptionSelect = (option) => {
         timestamp: new Date(),
         chat: chatQAObject
       };
-      
+
       await addDoc(collection(db, 'chatResponses'), summaryData);
       console.log('Conversation summary saved to Firestore');
-      
+
       // Delete incomplete chat since conversation is completed
       await deleteIncompleteChat();
       console.log('Incomplete chat deleted after completion');
-      
-      // Show in-app end-of-chat prompt instead of native alerts
+
+      // Hide final options and show end-of-chat popup
+      setShowFinalOptions(false);
       setShowEndPopup(true);
     } catch (error) {
       console.error('Error saving conversation summary:', error);
-      if (Platform.OS === 'web') {
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
         window.alert('Error saving feedback. Please try again.');
       } else {
         Alert.alert('Error', 'Error saving feedback. Please try again.');
       }
     }
+  };
+
+  const renderFinalOptions = () => {
+    if (!showFinalOptions || chatState !== CHAT_STATES.FINAL_MESSAGE) return null;
+
+    return (
+      <View style={[styles.optionsContainer, { alignItems: 'center' }]}> 
+        <Text style={{ fontSize: 16, fontWeight: '600', color: '#444', marginBottom: 12 }}>Almost done — want to add anything else?</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 12 }}>
+          <TouchableOpacity
+            style={[styles.optionButton, { minWidth: 140 }]}
+            onPress={() => {
+              // Let the user elaborate more
+              setShowFinalOptions(false);
+              setChatState(CHAT_STATES.ELABORATION);
+              setMessages(prev => [...prev, { id: Date.now(), text: 'Sure — please share any additional details below.', isUser: false, time: new Date() }]);
+              setTimeout(() => {
+                if (scrollViewRef.current) scrollViewRef.current.scrollToEnd({ animated: true });
+              }, 120);
+            }}
+          >
+            <Text style={styles.optionText}>Add details</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.optionButton, { minWidth: 140, backgroundColor: '#333' }]}
+            onPress={() => {
+              // Submit immediately
+              completeConversation();
+            }}
+          >
+            <Text style={[styles.optionText, { fontWeight: '700' }]}>Submit</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
   };
 
   const showPendingMessages = (messagesArr, nextStep) => {
@@ -2390,6 +2439,7 @@ const renderCurrentStep = () => {
               {renderSecondaryOptions()}
               {renderThirdOptions()}
               {renderFourthOptions()}
+              {renderFinalOptions()}
             </ScrollView>
 
             {(chatState === CHAT_STATES.ELABORATION) && (
