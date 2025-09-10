@@ -4,13 +4,14 @@
   "slug": "mdojo",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/icon.jpg",
     "scheme": "mdojo",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "android": {
       "package": "com.mdojo.app",
       "versionCode": 2,
+      "icon": "./assets/images/icon.jpg",
       "permissions": [
         "RECEIVE_BOOT_COMPLETED",
         "WAKE_LOCK",
@@ -21,8 +22,9 @@
         "USE_EXACT_ALARM"
       ],
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/images/icon.jpg",
+        "backgroundColor": "#FFFFFF",
+        "monochromeImage": "./assets/images/icon.jpg"
       },
       "googleServicesFile": "./google-services.json",
       "edgeToEdgeEnabled": true
@@ -31,6 +33,7 @@
       "bundleIdentifier": "com.mdojo.app",
       "buildNumber": "1.0.0",
       "supportsTablet": true,
+      "icon": "./assets/images/icon.jpg",
       "infoPlist": {
         "UIBackgroundModes": [
           "fetch",
@@ -44,7 +47,7 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/icon.png",
+          "image": "./assets/images/icon.jpg",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#000000"
@@ -53,7 +56,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/images/icon.png",
+          "icon": "./assets/images/icon.jpg",
           "color": "#ffffff",
           "sounds": [],
           "mode": "production",
@@ -91,7 +94,7 @@
       "fallbackToCacheTimeout": 0
     },
     "notification": {
-      "icon": "./assets/images/icon.png",
+      "icon": "./assets/images/icon.jpg",
       "color": "#ffffff",
       "iosDisplayInForeground": true,
       "androidMode": "default"
@@ -103,7 +106,7 @@
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/icon.png"
+      "favicon": "./assets/images/icon.jpg"
     },
     "experiments": {
       "typedRoutes": true

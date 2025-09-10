@@ -1757,8 +1757,11 @@ const handleFourthOptionSelect = (option) => {
       await deleteIncompleteChat();
       console.log('Incomplete chat deleted after completion');
       
-      // Show in-app end-of-chat prompt instead of native alerts
-      setShowEndPopup(true);
+      // Show the end popup after a short delay to let users read the final messages
+      setTimeout(() => {
+        setShowEndPopup(true);
+      }, 2000); // 2 second delay to read final messages
+      
     } catch (error) {
       console.error('Error saving conversation summary:', error);
       if (Platform.OS === 'web') {
@@ -1781,12 +1784,32 @@ const handleFourthOptionSelect = (option) => {
       return;
     }
     console.log('[DEBUG] Entered showPendingMessages');
+    const isFinalSequence = nextStep === 'end';
+    
     messagesArr.forEach((msg, idx) => {
       setTimeout(() => {
+        const isLastMessage = idx === messagesArr.length - 1;
+        
         setMessages(prev => [
           ...prev,
-          { id: Date.now() + idx, text: msg, isUser: false, time: new Date() }
+          { 
+            id: Date.now() + idx, 
+            text: msg, 
+            isUser: false, 
+            time: new Date(),
+            isThankYou: isFinalSequence, // Mark as thank you message if it's final sequence
+            isClosingMessage: isFinalSequence,
+            isLastInSequence: isLastMessage && isFinalSequence
+          }
         ]);
+        
+        // Auto-scroll after each message
+        setTimeout(() => {
+          if (scrollViewRef.current) {
+            scrollViewRef.current.scrollToEnd({ animated: true });
+          }
+        }, 100);
+        
         if (idx === messagesArr.length - 1 && nextStep) {
           setTimeout(() => {
             if (nextStep === 'end') {
@@ -1796,7 +1819,7 @@ const handleFourthOptionSelect = (option) => {
             }
           }, 1200);
         }
-      }, idx * 1200);
+      }, idx * 800); // Slightly faster for better flow
     });
   };
 
@@ -2318,72 +2341,140 @@ const renderCurrentStep = () => {
 
               {messages
                 .filter(msg => typeof msg.text === 'string' && msg.text.trim() !== '')
-                .map((msg) => (
-                <Animated.View 
-                  key={msg.id} 
-                  style={[
-                    styles.messageBubble, 
-                    msg.isUser ? styles.userBubble : styles.botBubble,
-                    { opacity: fadeAnim }
-                  ]}
-                >
-                  {msg.isGif ? (
-                    useExpoImage ? (
-                      <ExpoImage 
-                        source={{ uri: msg.text }}
-                        style={styles.gifImage}
-                        contentFit="contain"
-                        cachePolicy="memory-disk"
-                        priority="high"
-                        recyclingKey={`msg-gif-${msg.id}-${gifRefreshKey}`}
-                        onError={(error) => {
-                          console.log('[MESSAGE GIF ERROR] ExpoImage failed, falling back to Image', error);
-                          setUseExpoImage(false);
-                        }}
-                      />
-                    ) : (
-                      <Image 
-                        source={{ uri: msg.text }}
-                        style={styles.gifImage}
-                        resizeMode="contain"
-                        onError={(error) => console.log('[MESSAGE GIF ERROR] Image also failed', error.nativeEvent)}
-                      />
-                    )
-                  ) : msg.isWelcomeGif ? (
-                    useExpoImage ? (
-                      <ExpoImage 
-                        source={msg.gifSource}
-                        style={styles.gifImage}
-                        contentFit="contain"
-                        cachePolicy="memory-disk"
-                        priority="high"
-                        recyclingKey={`welcome-gif-${msg.id}-${gifRefreshKey}`}
-                        onError={(error) => {
-                          console.log('[WELCOME GIF ERROR] ExpoImage failed, falling back to Image', error);
-                          setUseExpoImage(false);
-                        }}
-                      />
-                    ) : (
-                      <Image 
-                        source={msg.gifSource}
-                        style={styles.gifImage}
-                        resizeMode="contain"
-                        onError={(error) => console.log('[WELCOME GIF ERROR] Image also failed', error.nativeEvent)}
-                      />
-                    )
-                  ) : (
-                    <EmojiText style={msg.isUser ? styles.userText : (msg.isWelcomeGif || msg.isWelcomeText) ? styles.welcomeText : styles.botText} emojiSize={32}>
-                      {msg.text}
-                    </EmojiText>
-                  )}
-                  <Text style={[
-                    styles.timeText,
-                    msg.isUser ? styles.userTimeText : {}
-                  ]}>
-                    {msg.time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </Text>
-                </Animated.View>
-              ))}
+                .map((msg, index) => {
+                  // Special styling for final thank you messages
+                  const isThankYouMessage = chatState === CHAT_STATES.THANK_YOU && !msg.isUser;
+                  const isSpecialMessage = msg.isThankYou || msg.isClosingMessage || 
+                                         msg.text.includes('Thanks for taking') || 
+                                         msg.text.includes('Take care') || 
+                                         msg.text.includes('Your wellbeing chatbot') ||
+                                         msg.text.includes('talk to you soon');
+                  const isLastMessage = msg.isLastInSequence;
+                  
+                  return (
+                    <Animated.View 
+                      key={msg.id} 
+                      style={[
+                        styles.messageBubble, 
+                        msg.isUser ? styles.userBubble : styles.botBubble,
+                        isThankYouMessage && styles.thankYouBubble,
+                        isSpecialMessage && styles.specialMessageBubble,
+                        isLastMessage && styles.finalMessageBubble,
+                        { opacity: fadeAnim }
+                      ]}
+                    >
+                      {/* Add decorative icons for different message types */}
+                      {isThankYouMessage && (
+                        <View style={styles.thankYouIcon}>
+                          <Text style={styles.thankYouEmoji}>✨</Text>
+                        </View>
+                      )}
+                      
+                      {isSpecialMessage && !isThankYouMessage && (
+                        <View style={styles.specialIcon}>
+                          <Text style={styles.specialEmoji}>💫</Text>
+                        </View>
+                      )}
+                      
+                      {/* Add mood-based icons for non-user messages */}
+                      {!msg.isUser && !isSpecialMessage && !isThankYouMessage && (
+                        <View style={styles.messageIcon}>
+                          <Text style={styles.messageEmoji}>
+                            {selectedMood === 'glad' ? '😊' : 
+                             selectedMood === 'sad' ? '🤗' : 
+                             selectedMood === 'mad' ? '😌' : '💭'}
+                          </Text>
+                        </View>
+                      )}
+                      
+                      {msg.isGif ? (
+                        useExpoImage ? (
+                          <ExpoImage 
+                            source={{ uri: msg.text }}
+                            style={styles.gifImage}
+                            contentFit="contain"
+                            cachePolicy="memory-disk"
+                            priority="high"
+                            recyclingKey={`msg-gif-${msg.id}-${gifRefreshKey}`}
+                            onError={(error) => {
+                              console.log('[MESSAGE GIF ERROR] ExpoImage failed, falling back to Image', error);
+                              setUseExpoImage(false);
+                            }}
+                          />
+                        ) : (
+                          <Image 
+                            source={{ uri: msg.text }}
+                            style={styles.gifImage}
+                            resizeMode="contain"
+                            onError={(error) => console.log('[MESSAGE GIF ERROR] Image also failed', error.nativeEvent)}
+                          />
+                        )
+                      ) : msg.isWelcomeGif ? (
+                        useExpoImage ? (
+                          <ExpoImage 
+                            source={msg.gifSource}
+                            style={styles.gifImage}
+                            contentFit="contain"
+                            cachePolicy="memory-disk"
+                            priority="high"
+                            recyclingKey={`welcome-gif-${msg.id}-${gifRefreshKey}`}
+                            onError={(error) => {
+                              console.log('[WELCOME GIF ERROR] ExpoImage failed, falling back to Image', error);
+                              setUseExpoImage(false);
+                            }}
+                          />
+                        ) : (
+                          <Image 
+                            source={msg.gifSource}
+                            style={styles.gifImage}
+                            resizeMode="contain"
+                            onError={(error) => console.log('[WELCOME GIF ERROR] Image also failed', error.nativeEvent)}
+                          />
+                        )
+                      ) : (
+                        <EmojiText 
+                          style={[
+                            msg.isUser ? styles.userText : 
+                            (msg.isWelcomeGif || msg.isWelcomeText) ? styles.welcomeText : 
+                            styles.botText,
+                            isThankYouMessage && styles.thankYouText,
+                            isSpecialMessage && styles.specialMessageText,
+                            isLastMessage && styles.finalMessageText
+                          ]} 
+                          emojiSize={32}
+                        >
+                          {msg.text}
+                        </EmojiText>
+                      )}
+                      
+                      <Text style={[
+                        styles.timeText,
+                        msg.isUser ? styles.userTimeText : {},
+                        isThankYouMessage && styles.thankYouTimeText,
+                        isSpecialMessage && styles.specialTimeText
+                      ]}>
+                        {msg.time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </Text>
+                      
+                      {/* Add sparkle effect for thank you messages */}
+                      {isThankYouMessage && (
+                        <View style={styles.sparkleEffect}>
+                          <Text style={[styles.sparkle, { top: 10, left: 10 }]}>✨</Text>
+                          <Text style={[styles.sparkle, { top: 20, right: 15 }]}>💫</Text>
+                          <Text style={[styles.sparkle, { bottom: 15, left: 20 }]}>⭐</Text>
+                        </View>
+                      )}
+                      
+                      {/* Add special glow effect for final message */}
+                      {isLastMessage && (
+                        <View style={styles.finalGlowEffect}>
+                          <Text style={[styles.sparkle, { top: 5, right: 5 }]}>🌟</Text>
+                          <Text style={[styles.sparkle, { bottom: 5, left: 5 }]}>💝</Text>
+                        </View>
+                      )}
+                    </Animated.View>
+                  );
+                })}
               {renderMoodSelection()}
               {renderCurrentStep()}
               {renderFollowUpOptions()}
@@ -2555,12 +2646,14 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     marginBottom: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
     minHeight: 60,
     justifyContent: 'center',
+    position: 'relative',
+    overflow: 'hidden',
   },
   botBubble: {
     backgroundColor: '#FFF',
@@ -2568,8 +2661,14 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 18,
     borderTopRightRadius: 18,
     alignSelf: 'flex-start',
-    borderWidth: 1,
-    borderColor: '#EEE',
+    borderWidth: 2,
+    borderColor: '#E3F2FD',
+    shadowColor: '#2196F3',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+    transform: [{ scale: 1 }],
   },
   userBubble: {
     backgroundColor: '#FF5A5F',
@@ -2577,6 +2676,14 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 18,
     borderBottomRightRadius: 4,
     alignSelf: 'flex-end',
+    borderWidth: 2,
+    borderColor: '#FFE0E1',
+    shadowColor: '#FF5A5F',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+    transform: [{ scale: 1 }],
   },
   botText: {
     color: '#333',
@@ -2585,6 +2692,8 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
     textAlignVertical: 'center',
     fontFamily: Platform.OS === 'ios' ? 'Arial' : 'sans-serif',
+    fontWeight: '500',
+    letterSpacing: 0.3,
   },
   welcomeText: {
     color: '#333',
@@ -2594,6 +2703,9 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
     textAlignVertical: 'center',
     fontFamily: Platform.OS === 'ios' ? 'Arial' : 'sans-serif',
+    textShadowColor: 'rgba(0, 0, 0, 0.1)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
   },
   // Mood Selection Styles
   moodSelectionContainer: {
@@ -2664,10 +2776,157 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 16,
     lineHeight: 24,
-    fontWeight: '500',
+    fontWeight: '600',
     includeFontPadding: false,
     textAlignVertical: 'center',
     fontFamily: Platform.OS === 'ios' ? 'Arial' : 'sans-serif',
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+    letterSpacing: 0.3,
+  },
+  // Special styles for thank you messages
+  thankYouBubble: {
+    borderWidth: 3,
+    borderColor: '#4CAF50',
+    backgroundColor: '#F8FFF8',
+    shadowColor: '#4CAF50',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
+    transform: [{ scale: 1.02 }],
+  },
+  specialMessageBubble: {
+    borderWidth: 2,
+    borderColor: '#FFD700',
+    backgroundColor: '#FFFEF7',
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 7,
+  },
+  thankYouText: {
+    color: '#2E7D32',
+    fontWeight: '600',
+    textShadowColor: 'rgba(76, 175, 80, 0.3)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
+  specialMessageText: {
+    color: '#F57C00',
+    fontWeight: '600',
+    textShadowColor: 'rgba(255, 215, 0, 0.3)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
+  thankYouIcon: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    backgroundColor: '#4CAF50',
+    borderRadius: 15,
+    width: 30,
+    height: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#4CAF50',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  thankYouEmoji: {
+    fontSize: 16,
+    color: '#FFF',
+  },
+  thankYouTimeText: {
+    color: '#4CAF50',
+    fontWeight: '600',
+  },
+  sparkleEffect: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    pointerEvents: 'none',
+  },
+  sparkle: {
+    position: 'absolute',
+    fontSize: 12,
+    opacity: 0.7,
+  },
+  // Additional icon styles for different message types
+  specialIcon: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    backgroundColor: '#FF9800',
+    borderRadius: 15,
+    width: 30,
+    height: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#FF9800',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  specialEmoji: {
+    fontSize: 16,
+    color: '#FFF',
+  },
+  messageIcon: {
+    position: 'absolute',
+    top: -8,
+    left: -8,
+    backgroundColor: '#2196F3',
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#2196F3',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 3,
+  },
+  messageEmoji: {
+    fontSize: 14,
+  },
+  finalMessageBubble: {
+    borderWidth: 3,
+    borderColor: '#9C27B0',
+    backgroundColor: '#FFF3FF',
+    shadowColor: '#9C27B0',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.5,
+    shadowRadius: 15,
+    elevation: 10,
+    transform: [{ scale: 1.03 }],
+  },
+  finalMessageText: {
+    color: '#7B1FA2',
+    fontWeight: '700',
+    textShadowColor: 'rgba(156, 39, 176, 0.3)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 3,
+  },
+  specialTimeText: {
+    color: '#FF9800',
+    fontWeight: '600',
+  },
+  finalGlowEffect: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    pointerEvents: 'none',
   },
   timeText: {
     fontSize: 10,
@@ -2691,17 +2950,22 @@ const styles = StyleSheet.create({
     flex: 1,
     maxHeight: 120,
     minHeight: 50,
-    borderWidth: 1,
-    borderColor: '#DDD',
+    borderWidth: 2,
+    borderColor: '#E3F2FD',
     borderRadius: 25,
     paddingHorizontal: 18,
     paddingVertical: 12,
     fontSize: 16,
-    backgroundColor: '#F8F8F8',
+    backgroundColor: '#FAFAFA',
     textAlignVertical: 'center',
     includeFontPadding: false,
     color: '#333',
     fontFamily: 'SpaceMono-Regular',
+    shadowColor: '#2196F3',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   employeeIdInput: {
     fontFamily: 'monospace',
@@ -2758,25 +3022,29 @@ const styles = StyleSheet.create({
     width: '31%',
     aspectRatio: 1,
     backgroundColor: '#FFF',
-    borderRadius: 16,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 16,
     marginBottom: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 8,
     position: 'relative',
     overflow: 'hidden',
     transform: [{ scale: 1 }],
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.8)',
   },
   selectedMoodCard: {
-    transform: [{ scale: 1.05 }],
-    elevation: 8,
-    shadowRadius: 10,
-    shadowOpacity: 0.15,
+    transform: [{ scale: 1.08 }],
+    elevation: 12,
+    shadowRadius: 15,
+    shadowOpacity: 0.25,
+    borderWidth: 3,
+    borderColor: '#E31937',
   },
   moodEmoji: {
     fontSize: 36,
@@ -2798,16 +3066,18 @@ const styles = StyleSheet.create({
   },
   optionsContainer: {
     backgroundColor: '#FFF',
-    borderRadius: 16,
+    borderRadius: 20,
     marginHorizontal: 16,
     marginBottom: 12,
-    padding: 12,
+    padding: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
     position: 'relative',
+    borderWidth: 1,
+    borderColor: 'rgba(227, 25, 55, 0.1)',
   },
   optionsScrollContent: {
     paddingHorizontal: 8,
@@ -2823,17 +3093,23 @@ const styles = StyleSheet.create({
     minWidth: 140,
     backgroundColor: '#FF5A5F',
     shadowColor: '#FF5A5F',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    transform: [{ scale: 1 }],
   },
   optionText: {
     color: '#FFF',
     fontSize: 15,
     marginLeft: 8,
-    fontWeight: '500',
+    fontWeight: '600',
     fontFamily: 'SpaceMono-Regular',
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 1,
   },
   optionEmoji: {
     fontSize: 28,
